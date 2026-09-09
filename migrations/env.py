@@ -6,6 +6,8 @@ from sqlalchemy import pool
 from alembic import context
 
 from app.config import get_settings
+from app.db.base import Base
+from app.db.models import ProjectModel, TaskModel, UserModel  # noqa: F401 — registers metadata
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -26,7 +28,7 @@ if not settings.database_url:
     )
 config.set_main_option("sqlalchemy.url", settings.database_url)
 
-target_metadata = None
+target_metadata = Base.metadata
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
