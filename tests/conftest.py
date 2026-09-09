@@ -1,17 +1,34 @@
-import pytest
-from fastapi.testclient import TestClient
+from pathlib import Path
 
+import pytest
+from alembic import command
+from alembic.config import Config
+from fastapi.testclient import TestClient
+from sqlalchemy import text
+
+from app.db.session import get_engine
 from app.main import app
-from app.repositories.project_repo import project_repository
-from app.repositories.task_repo import task_repository
-from app.repositories.user_repo import user_repository
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+
+
+@pytest.fixture(scope="session", autouse=True)
+def apply_migrations():
+    """Runs the real Alembic migrations against DATABASE_URL once per test
+    session — the same schema-creation path used in production, not a
+    create_all() shortcut."""
+    alembic_cfg = Config(str(REPO_ROOT / "alembic.ini"))
+    command.upgrade(alembic_cfg, "head")
+    yield
 
 
 @pytest.fixture(autouse=True)
-def reset_repositories():
-    user_repository._users.clear()
-    project_repository._projects.clear()
-    task_repository._tasks.clear()
+def reset_database():
+    """Equivalent of Task 2's `._users.clear()` etc. for a real database:
+    truncate every table before each test so tests stay isolated."""
+    engine = get_engine()
+    with engine.begin() as conn:
+        conn.execute(text("TRUNCATE TABLE tasks, projects, users CASCADE"))
     yield
 
 
