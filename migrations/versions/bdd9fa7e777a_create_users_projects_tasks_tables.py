@@ -28,7 +28,12 @@ down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
-task_status = postgresql.ENUM("todo", "in-progress", "done", name="task_status")
+# create_type=False: the type is created/dropped explicitly below via
+# checkfirst, so op.create_table()/op.drop_table() don't also try to
+# manage it (that would emit a duplicate CREATE TYPE against a real DB).
+task_status = postgresql.ENUM(
+    "todo", "in-progress", "done", name="task_status", create_type=False
+)
 
 
 def upgrade() -> None:
