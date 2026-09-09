@@ -1,27 +1,48 @@
 from uuid import UUID
 
+from app.db.models import ProjectModel
+from app.db.session import session_scope
 from app.models.project import ProjectInDB
 
 
-class ProjectRepository:
-    """In-memory store for Task 2, swappable for a SQLAlchemy-backed
-    implementation in Task 3 behind the same method signatures."""
+def _to_schema(row: ProjectModel) -> ProjectInDB:
+    return ProjectInDB(
+        id=row.id,
+        name=row.name,
+        description=row.description,
+        owner_id=row.owner_id,
+        created_at=row.created_at,
+    )
 
-    def __init__(self) -> None:
-        self._projects: dict[UUID, ProjectInDB] = {}
+
+class ProjectRepository:
+    """Postgres-backed store for Task 3, behind the same method
+    signatures Task 2's in-memory store used."""
 
     def list(self, owner_id: UUID | None = None) -> list[ProjectInDB]:
-        projects = list(self._projects.values())
-        if owner_id is not None:
-            projects = [p for p in projects if p.owner_id == owner_id]
-        return projects
+        with session_scope() as session:
+            query = session.query(ProjectModel).order_by(ProjectModel.created_at)
+            if owner_id is not None:
+                query = query.filter(ProjectModel.owner_id == owner_id)
+            return [_to_schema(row) for row in query.all()]
 
     def get(self, project_id: UUID) -> ProjectInDB | None:
-        return self._projects.get(project_id)
+        with session_scope() as session:
+            row = session.get(ProjectModel, project_id)
+            return _to_schema(row) if row is not None else None
 
     def create(self, project: ProjectInDB) -> ProjectInDB:
-        self._projects[project.id] = project
-        return project
+        with session_scope() as session:
+            row = ProjectModel(
+                id=project.id,
+                name=project.name,
+                description=project.description,
+                owner_id=project.owner_id,
+            )
+            session.add(row)
+            session.flush()
+            session.refresh(row)
+            return _to_schema(row)
 
 
 project_repository = ProjectRepository()
