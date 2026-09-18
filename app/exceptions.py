@@ -3,6 +3,7 @@ import logging
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 logger = logging.getLogger("app.errors")
 
@@ -42,12 +43,33 @@ def register_exception_handlers(app: FastAPI) -> None:
             content=_error_body(exc.code, exc.message, exc.details),
         )
 
+    @app.exception_handler(StarletteHTTPException)
+    async def http_exception_handler(
+        request: Request, exc: StarletteHTTPException
+    ) -> JSONResponse:
+        # FastAPI/Starlette install a default handler for their own
+        # HTTPException at app-construction time — anything they raise
+        # internally (unmatched route -> 404, wrong HTTP method -> 405)
+        # would otherwise bypass the {"error": {...}} contract below and
+        # fall through to their default {"detail": "..."} shape instead,
+        # since Starlette picks the most specific registered handler
+        # before the catch-all Exception handler gets a chance.
+        code = {
+            status.HTTP_404_NOT_FOUND: "not_found",
+            status.HTTP_405_METHOD_NOT_ALLOWED: "method_not_allowed",
+        }.get(exc.status_code, "http_error")
+        return JSONResponse(
+            status_code=exc.status_code,
+            content=_error_body(code, str(exc.detail), None),
+            headers=exc.headers,
+        )
+
     @app.exception_handler(RequestValidationError)
     async def validation_error_handler(
         request: Request, exc: RequestValidationError
     ) -> JSONResponse:
         return JSONResponse(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             content=_error_body(
                 "validation_error", "Request failed validation.", exc.errors()
             ),
