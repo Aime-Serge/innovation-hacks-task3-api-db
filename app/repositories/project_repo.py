@@ -44,5 +44,26 @@ class ProjectRepository:
             session.refresh(row)
             return _to_schema(row)
 
+    def update(self, project: ProjectInDB) -> ProjectInDB | None:
+        with session_scope() as session:
+            row = session.get(ProjectModel, project.id)
+            if row is None:
+                # Deleted by another request between the router's
+                # existence check and this call — return None so the
+                # router can raise a clean 404 instead of this hitting
+                # AttributeError on the next line and surfacing as 500.
+                return None
+            row.name = project.name
+            row.description = project.description
+            session.flush()
+            session.refresh(row)
+            return _to_schema(row)
+
+    def delete(self, project_id: UUID) -> None:
+        with session_scope() as session:
+            row = session.get(ProjectModel, project_id)
+            if row is not None:
+                session.delete(row)
+
 
 project_repository = ProjectRepository()

@@ -61,3 +61,45 @@ def test_create_project_wrong_type_owner_id_returns_422(client):
 def test_get_project_malformed_id_returns_422_not_404(client):
     r = client.get("/projects/not-a-uuid")
     assert r.status_code == 422
+
+
+def test_update_project_returns_200(client, project):
+    r = client.patch(f"/projects/{project['id']}", json={"name": "New Name"})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["name"] == "New Name"
+    assert body["description"] == project["description"]
+
+
+def test_update_project_not_found_returns_404(client):
+    r = client.patch(f"/projects/{NIL_UUID}", json={"name": "Nobody's project"})
+    assert r.status_code == 404
+    assert r.json()["error"]["code"] == "not_found"
+
+
+def test_update_project_invalid_payload_returns_422(client, project):
+    r = client.patch(f"/projects/{project['id']}", json={"name": ""})
+    assert r.status_code == 422
+
+
+def test_delete_project_returns_204_then_404(client, project):
+    r = client.delete(f"/projects/{project['id']}")
+    assert r.status_code == 204
+    r2 = client.get(f"/projects/{project['id']}")
+    assert r2.status_code == 404
+
+
+def test_delete_project_not_found_returns_404(client):
+    r = client.delete(f"/projects/{NIL_UUID}")
+    assert r.status_code == 404
+
+
+def test_delete_project_cascades_to_its_tasks(client, project):
+    task = client.post(
+        "/tasks", json={"title": "Orphan candidate", "project_id": project["id"]}
+    ).json()
+
+    r = client.delete(f"/projects/{project['id']}")
+    assert r.status_code == 204
+
+    assert client.get(f"/tasks/{task['id']}").status_code == 404

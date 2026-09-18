@@ -43,8 +43,10 @@ def test_data_survives_a_simulated_server_restart(client, project):
 
 
 def test_deleting_project_cascades_to_its_tasks(client, project):
-    """Task 2 has no DELETE /projects route, so this exercises the
-    Architect's cascade rule directly at the database layer."""
+    """DELETE /projects/{id} now exists and has its own API-level cascade
+    test (tests/test_projects.py); this one bypasses the API entirely to
+    prove the cascade rule is enforced at the database layer itself,
+    independent of any application code path reaching it."""
     task = client.post(
         "/tasks", json={"title": "Orphan candidate", "project_id": project["id"]}
     ).json()

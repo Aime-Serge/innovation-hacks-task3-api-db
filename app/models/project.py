@@ -10,6 +10,11 @@ class ProjectCreate(BaseModel):
     owner_id: UUID
 
 
+class ProjectUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=150)
+    description: str | None = Field(default=None, max_length=2000)
+
+
 class ProjectOut(BaseModel):
     id: UUID
     name: str
