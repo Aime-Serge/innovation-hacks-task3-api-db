@@ -19,8 +19,11 @@ Task 3 of the Innovation Hacks Full Stack Development Internship — a REST API 
 - Project management: create, list (with optional `owner_id` filter), get by id
 - Task management: create, list (with optional `project_id`/`status` filters), get by id, update, delete
 - Dedicated task status-transition endpoint (`todo` / `in-progress` / `done`)
-- Centralized error handling — every error response shares one JSON shape
+- Centralized error handling — every error response shares one JSON shape,
+  including framework-raised errors (unmatched route, wrong HTTP method),
+  not just application-raised ones
 - Input validation on every write operation via Pydantic models
+- CORS configured for the frontend origin (`CORS_ORIGINS`)
 - Environment-variable-driven configuration, no hardcoded secrets
 - Auto-generated interactive API docs at `/docs` and `/redoc`
 
@@ -31,6 +34,13 @@ Task 3 of the Innovation Hacks Full Stack Development Internship — a REST API 
 - **Cascade rule**: both foreign keys are `ON DELETE CASCADE` — deleting a user deletes their projects (and those projects' tasks); deleting a project deletes its tasks. This preserves Task 2's existing `DELETE /users/{id}` behavior (which already deletes unconditionally, with no ownership check) instead of introducing a new FK-violation error path.
 - **Auth-readiness**: each router is registered with `dependencies=[]`. Task 4 adds the auth dependency at the router level, with no changes to individual handlers.
 - **No authentication yet**: user passwords are stored hashed (PBKDF2-HMAC-SHA256, salted) for forward compatibility, but there is no login/token endpoint — that's Task 4's explicit "Authentication" requirement.
+
+## Known Gaps / Assumptions
+
+- **Check-then-act races, mitigated at the database layer**: each repository call opens and commits its own transaction (`session_scope()`), so a router's "does the referenced row exist?" check and the write that follows it aren't one atomic unit. A request racing in between (e.g. two `POST /users` with the same email, or a `DELETE` landing between another request's existence check and its own write) is still possible — but the database's own constraints (the unique index on `email`, the `ON DELETE CASCADE` foreign keys) are the actual source of truth, and every write path that can hit one translates the resulting `IntegrityError` (or a vanished row) into the same clean 409/404 the pre-check would have raised, instead of letting it surface as an uncaught 500. See `tests/test_race_conditions.py`.
+- **No pagination**: `GET /users`, `GET /projects`, and `GET /tasks` return every matching row with no `limit`/`offset`. Fine at this task's scale, not for a real deployment.
+- **No rate limiting**: combined with no auth, nothing currently prevents a client from hammering any endpoint.
+- **`psycopg2-binary`**: fine for local dev/tests, but discouraged for production per its own docs (prefer building `psycopg2` from source against the target platform's OpenSSL/libpq).
 
 ## Schema / ER Diagram
 
@@ -145,6 +155,7 @@ pytest -v
 | `HOST` | Bind address | active |
 | `PORT` | Bind port | active |
 | `LOG_LEVEL` | Logging verbosity | active |
+| `CORS_ORIGINS` | Comma-separated allowed frontend origins | active |
 | `DATABASE_URL` | SQLAlchemy Postgres connection string | **active** — required, no hardcoded fallback |
 | `SECRET_KEY` | Auth signing key | placeholder — unused until Task 4 |
 
