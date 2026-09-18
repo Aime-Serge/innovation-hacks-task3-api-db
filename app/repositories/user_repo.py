@@ -54,9 +54,16 @@ class UserRepository:
             session.refresh(row)
             return _to_schema(row)
 
-    def update(self, user: UserInDB) -> UserInDB:
+    def update(self, user: UserInDB) -> UserInDB | None:
         with session_scope() as session:
             row = session.get(UserModel, user.id)
+            if row is None:
+                # The row existed when the router checked moments ago but
+                # was deleted by another request before this ran — return
+                # None rather than raising AttributeError on the next
+                # line, so the router can turn this into a clean 404
+                # instead of it surfacing as an uncaught 500.
+                return None
             row.name = user.name
             row.email = user.email
             row.password_hash = user.password_hash

@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 from uuid import UUID
 
 from fastapi import APIRouter, status
+from sqlalchemy.exc import IntegrityError
 
 from app.exceptions import NotFoundError
 from app.models.task import (
@@ -28,7 +29,14 @@ def create_task(payload: TaskCreate) -> TaskOut:
         project_id=payload.project_id,
         status=payload.status,
     )
-    return task_repository.create(task).to_out()
+    try:
+        return task_repository.create(task).to_out()
+    except IntegrityError:
+        # The project existed moments ago in the check above but was
+        # deleted before this insert ran — translate the FK rejection to
+        # the same 404 the pre-check would have raised, instead of an
+        # uncaught 500.
+        raise NotFoundError(f"Project '{payload.project_id}' not found.")
 
 
 @router.get("", response_model=list[TaskOut])
@@ -61,7 +69,10 @@ def update_task(task_id: UUID, payload: TaskUpdate) -> TaskOut:
         task.description = payload.description
     task.updated_at = datetime.now(timezone.utc)
 
-    return task_repository.update(task).to_out()
+    updated = task_repository.update(task)
+    if updated is None:
+        raise NotFoundError(f"Task '{task_id}' not found.")
+    return updated.to_out()
 
 
 @router.patch("/{task_id}/status", response_model=TaskOut)
@@ -73,7 +84,10 @@ def update_task_status(task_id: UUID, payload: TaskStatusUpdate) -> TaskOut:
     task.status = payload.status
     task.updated_at = datetime.now(timezone.utc)
 
-    return task_repository.update(task).to_out()
+    updated = task_repository.update(task)
+    if updated is None:
+        raise NotFoundError(f"Task '{task_id}' not found.")
+    return updated.to_out()
 
 
 @router.delete("/{task_id}", status_code=status.HTTP_204_NO_CONTENT)

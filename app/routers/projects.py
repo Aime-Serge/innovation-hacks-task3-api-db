@@ -1,6 +1,7 @@
 from uuid import UUID
 
 from fastapi import APIRouter, status
+from sqlalchemy.exc import IntegrityError
 
 from app.exceptions import NotFoundError
 from app.models.project import ProjectCreate, ProjectInDB, ProjectOut
@@ -19,7 +20,14 @@ def create_project(payload: ProjectCreate) -> ProjectOut:
         description=payload.description,
         owner_id=payload.owner_id,
     )
-    return project_repository.create(project).to_out()
+    try:
+        return project_repository.create(project).to_out()
+    except IntegrityError:
+        # The owner existed moments ago in the check above but was
+        # deleted before this insert ran — the FK constraint is the real
+        # source of truth; translate its rejection to the same 404 the
+        # pre-check would have raised, instead of an uncaught 500.
+        raise NotFoundError(f"Owner user '{payload.owner_id}' not found.")
 
 
 @router.get("", response_model=list[ProjectOut])

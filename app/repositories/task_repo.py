@@ -51,9 +51,15 @@ class TaskRepository:
             session.refresh(row)
             return _to_schema(row)
 
-    def update(self, task: TaskInDB) -> TaskInDB:
+    def update(self, task: TaskInDB) -> TaskInDB | None:
         with session_scope() as session:
             row = session.get(TaskModel, task.id)
+            if row is None:
+                # Deleted by another request between the router's
+                # existence check and this call — return None so the
+                # router can raise a clean 404 instead of this hitting
+                # AttributeError on the next line and surfacing as 500.
+                return None
             row.title = task.title
             row.description = task.description
             row.status = task.status
