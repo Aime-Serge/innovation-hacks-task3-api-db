@@ -16,7 +16,7 @@ Task 3 of the Innovation Hacks Full Stack Development Internship — a REST API 
 ## Features
 
 - User management: create, list, get, update, delete
-- Project management: create, list (with optional `owner_id` filter), get by id
+- Project management: create, list (with optional `owner_id` filter), get by id, update, delete
 - Task management: create, list (with optional `project_id`/`status` filters), get by id, update, delete
 - Dedicated task status-transition endpoint (`todo` / `in-progress` / `done`)
 - Centralized error handling — every error response shares one JSON shape,
@@ -29,9 +29,9 @@ Task 3 of the Innovation Hacks Full Stack Development Internship — a REST API 
 
 ## Architecture Notes
 
-- **Storage**: PostgreSQL via SQLAlchemy (`app/db/`), behind repositories (`app/repositories/`) that expose the exact same method signatures Task 2's in-memory store used. `app/routers/` has a **zero-line diff** from Task 2 — the interface abstraction meant the persistence swap required no route changes at all.
+- **Storage**: PostgreSQL via SQLAlchemy (`app/db/`), behind repositories (`app/repositories/`) that expose the same method signatures Task 2's in-memory store used. `app/routers/` started as a **zero-line diff** from Task 2; `PATCH`/`DELETE /projects/{id}` were added on top once persistence made full CRUD on every entity possible (Task 2's in-memory store deliberately left projects create/read-only).
 - **Relationships**: `Project.owner_id` references a `User`; `Task.project_id` references a `Project`. Creating a project/task with a non-existent owner/project returns `404` (API-layer check, unchanged from Task 2) — and the foreign keys enforce it at the schema level too.
-- **Cascade rule**: both foreign keys are `ON DELETE CASCADE` — deleting a user deletes their projects (and those projects' tasks); deleting a project deletes its tasks. This preserves Task 2's existing `DELETE /users/{id}` behavior (which already deletes unconditionally, with no ownership check) instead of introducing a new FK-violation error path.
+- **Cascade rule**: both foreign keys are `ON DELETE CASCADE` — deleting a user deletes their projects (and those projects' tasks); deleting a project deletes its tasks. This preserves Task 2's existing `DELETE /users/{id}` behavior (which already deletes unconditionally, with no ownership check) instead of introducing a new FK-violation error path, and `DELETE /projects/{id}` relies on the exact same mechanism for its own tasks.
 - **Auth-readiness**: each router is registered with `dependencies=[]`. Task 4 adds the auth dependency at the router level, with no changes to individual handlers.
 - **No authentication yet**: user passwords are stored hashed (PBKDF2-HMAC-SHA256, salted) for forward compatibility, but there is no login/token endpoint — that's Task 4's explicit "Authentication" requirement.
 
@@ -186,6 +186,8 @@ All error responses share this shape:
 | POST | `/projects` | Create a project | 201 | 422, 404 (owner not found) |
 | GET | `/projects` | List projects (optional `?owner_id=`) | 200 | — |
 | GET | `/projects/{project_id}` | Get project by id | 200 | 404 |
+| PATCH | `/projects/{project_id}` | Update a project's name/description | 200 | 404, 422 |
+| DELETE | `/projects/{project_id}` | Delete a project (cascades to its tasks) | 204 | 404 |
 
 ### Tasks
 
