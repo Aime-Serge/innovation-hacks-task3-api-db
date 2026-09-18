@@ -234,4 +234,6 @@ Notes](#architecture-notes)).
 
 ## Demo
 
-_Add the demo video link here before submitting._
+- **Demo video**: _add link here after recording_ — see
+  [`DEMO_SCRIPT.md`](DEMO_SCRIPT.md) for the timestamped shot list
+  (3–3:30 min, per the internship's Demo Video Requirements).
