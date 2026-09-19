@@ -218,28 +218,35 @@ All error responses share this shape:
 
 ## Deployment
 
-Deploys to **Render** (free tier, API plus a managed Postgres) from the
-included [`render.yaml`](render.yaml):
+The API deploys to **Render** (free tier) from the included
+[`render.yaml`](render.yaml); the database is an external free Postgres,
+for example [Neon](https://neon.com). Render allows only one free
+Postgres per workspace, so this Blueprint deliberately doesn't create one.
 
-1. render.com → **New → Blueprint** → select this repo. It reads
-   `render.yaml` and creates the `ih-task3-db` database and the
-   `ih-task3-api` web service.
-2. When prompted for `CORS_ORIGINS`, enter the origin of whatever will call
-   this API from a browser, or a placeholder like `http://localhost:3000`.
-   `DATABASE_URL` is filled in automatically from the database resource.
-3. The build runs `pip install` then `alembic upgrade head`, so the schema
-   is created on first deploy. Open `https://<your-service>.onrender.com/docs`
-   for the live Swagger UI, or `/health` for a quick check.
-4. Optional: to load the sample data, open a Shell on the service in the
-   Render dashboard and run `python -m app.seed`.
+1. **Create the database.** On Neon (or any Postgres host) create a
+   project and copy its connection string, for example
+   `postgresql://user:password@host/dbname?sslmode=require`. Use the
+   direct (non-pooled) connection string.
+2. **Create the service.** render.com → **New → Blueprint** → select this
+   repo (branch `main`). It reads `render.yaml` and creates `ih-task3-api`.
+3. **Fill in the prompted values:** `DATABASE_URL` (the string from step 1)
+   and `CORS_ORIGINS` (the origin of whatever will call this API from a
+   browser, or `http://localhost:3000`).
+4. The build runs `pip install` then `alembic upgrade head`, creating the
+   schema on first deploy. The service only goes **Live** once `/health`
+   can reach the database.
+5. Open `https://<your-service>.onrender.com/` — the landing page has a
+   "Run live checks" button that exercises the deployed API and database.
+   `/docs` is the Swagger UI.
+6. Optional: load sample data from a Shell on the service with
+   `python -m app.seed`.
 
 Things to know:
 
-- Data persists across restarts and redeploys (unlike Task 2). Render's
-  free Postgres instances expire after a limited period, so treat this
-  deployment as a demo, not long-term storage.
-- The free tier sleeps after inactivity; the first request afterwards
-  takes ~30s.
+- Data persists across restarts and redeploys (unlike Task 2).
+- The free web service sleeps after 15 minutes idle (the next request
+  takes up to a minute), and Neon's free compute also suspends when idle,
+  so the first database query after a quiet period is a little slower.
 
 ## Screenshots
 

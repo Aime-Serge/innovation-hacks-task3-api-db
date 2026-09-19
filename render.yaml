@@ -1,9 +1,3 @@
-databases:
-  - name: ih-task3-db
-    plan: free
-    databaseName: ih_task3
-    user: ih_task3
-
 services:
   - type: web
     name: ih-task3-api
@@ -19,14 +13,13 @@ services:
         value: production
       - key: LOG_LEVEL
         value: info
-      # Provisioned and injected by Render from the database resource
-      # above — never typed in by hand, never committed.
+      # No database resource here on purpose: Render allows one free
+      # Postgres per workspace and this project's other deployment (Task 4)
+      # uses it. Provide a connection string from any external Postgres
+      # (e.g. Neon) in the Render dashboard — never commit it.
+      # `sync: false` means "this value lives in the dashboard".
       - key: DATABASE_URL
-        fromDatabase:
-          name: ih-task3-db
-          property: connectionString
-      # Comma-separated allowed browser origins. Set in the Render
-      # dashboard (not committed) to wherever a frontend will call this
-      # from.
+        sync: false
+      # Comma-separated allowed browser origins.
       - key: CORS_ORIGINS
         sync: false
