@@ -266,6 +266,16 @@ Notes](#architecture-notes)).
 
 ## Demo
 
+- **Live API**: https://ih-task3-api.onrender.com
+  ([landing page with live checks](https://ih-task3-api.onrender.com/),
+  [Swagger UI](https://ih-task3-api.onrender.com/docs),
+  [health check](https://ih-task3-api.onrender.com/health)). Hosted on
+  Render's free tier with a Neon PostgreSQL database, so the first request
+  after a quiet period can take up to a minute. The landing page's
+  "Run live checks" button runs 11 real requests against the deployed API
+  and database (create, read back, update, duplicate email, unknown owner,
+  project rename, status change, and both cascade deletes); verified 11 of
+  11 passing against this URL.
 - **Demo video**: _add link here after recording_ — see
   [`DEMO_SCRIPT.md`](DEMO_SCRIPT.md) for the timestamped shot list
   (3–3:30 min, per the internship's Demo Video Requirements).
