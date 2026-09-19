@@ -216,6 +216,31 @@ All error responses share this shape:
 - **422** — Pydantic validation failure (missing/invalid field, bad enum value) — FastAPI's native behavior, kept as-is rather than remapped to 400
 - **500** — unhandled server error, generic message only; full traceback logged server-side
 
+## Deployment
+
+Deploys to **Render** (free tier, API plus a managed Postgres) from the
+included [`render.yaml`](render.yaml):
+
+1. render.com → **New → Blueprint** → select this repo. It reads
+   `render.yaml` and creates the `ih-task3-db` database and the
+   `ih-task3-api` web service.
+2. When prompted for `CORS_ORIGINS`, enter the origin of whatever will call
+   this API from a browser, or a placeholder like `http://localhost:3000`.
+   `DATABASE_URL` is filled in automatically from the database resource.
+3. The build runs `pip install` then `alembic upgrade head`, so the schema
+   is created on first deploy. Open `https://<your-service>.onrender.com/docs`
+   for the live Swagger UI, or `/health` for a quick check.
+4. Optional: to load the sample data, open a Shell on the service in the
+   Render dashboard and run `python -m app.seed`.
+
+Things to know:
+
+- Data persists across restarts and redeploys (unlike Task 2). Render's
+  free Postgres instances expire after a limited period, so treat this
+  deployment as a demo, not long-term storage.
+- The free tier sleeps after inactivity; the first request afterwards
+  takes ~30s.
+
 ## Screenshots
 
 All captured against the real running app — Swagger UI's own "Try it
