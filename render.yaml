@@ -1,25 +1,28 @@
 services:
   - type: web
-    name: ih-task3-api
-    runtime: python
+    name: ih-task2-api
+    runtime: docker
     plan: free
-    buildCommand: "pip install -r requirements.txt && alembic upgrade head"
-    startCommand: "python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT"
-    healthCheckPath: /health
+    healthCheckPath: /healthz
     envVars:
-      - key: PYTHON_VERSION
-        value: 3.14.3
+      # Demo deployment (ADR-221): the pack refuses seeding when APP_ENV=production, and
+      # this in-memory service has no other way to create the first lead. Switch to
+      # production and drop SEED_PROFILE when real persistence arrives in Task 3.
       - key: APP_ENV
-        value: production
+        value: development
       - key: LOG_LEVEL
         value: info
-      # No database resource here on purpose: Render allows one free
-      # Postgres per workspace and this project's other deployment (Task 4)
-      # uses it. Provide a connection string from any external Postgres
-      # (e.g. Neon) in the Render dashboard — never commit it.
-      # `sync: false` means "this value lives in the dashboard".
-      - key: DATABASE_URL
+      - key: DOCS_ENABLED
+        value: "true"
+      - key: SEED_PROFILE
+        value: default
+      # In-process storage: one worker only, and data resets on every restart.
+      - key: WEB_CONCURRENCY
+        value: "1"
+      - key: SECRET_KEY
+        generateValue: true
+      - key: SEED_PASSWORD
         sync: false
-      # Comma-separated allowed browser origins.
+      # Comma-separated browser origins (no wildcard). Set in the Render dashboard.
       - key: CORS_ORIGINS
         sync: false
