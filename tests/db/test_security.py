@@ -92,19 +92,34 @@ async def test_tc334_no_response_or_log_line_contains_the_connection_string(
     assert secret not in caplog.text
 
 
-def test_tc337_compose_refuses_unset_secrets_and_binds_to_loopback() -> None:
+SECRETS = ("POSTGRES_PASSWORD", "APP_DB_PASSWORD", "MIGRATOR_DB_PASSWORD", "READONLY_DB_PASSWORD")
+
+
+def _compose_config(env: dict[str, str]) -> "subprocess.CompletedProcess[str]":
     compose = ROOT / "database" / "docker-compose.yml"
-    result = subprocess.run(  # noqa: S603
+    return subprocess.run(  # noqa: S603
         ["docker", "compose", "-f", str(compose), "config"],  # noqa: S607
         capture_output=True,
         text=True,
-        env={"PATH": "/usr/bin:/bin:/usr/local/bin"},
+        env={"PATH": "/usr/bin:/bin:/usr/local/bin", **env},
         check=False,
     )
+
+
+@pytest.mark.parametrize("missing", SECRETS)
+def test_tc337_compose_refuses_each_unset_secret_and_names_it(missing: str) -> None:
+    # Which variable compose reports first depends on its version, so leave exactly one unset.
+    env = {name: "placeholder" for name in SECRETS if name != missing}
+    result = _compose_config(env)
     assert result.returncode != 0
-    assert "POSTGRES_PASSWORD" in result.stderr
+    assert missing in result.stderr
+
+
+def test_tc337_compose_binds_the_database_port_to_loopback() -> None:
+    compose = ROOT / "database" / "docker-compose.yml"
     ports = yaml.safe_load(compose.read_text())["services"]["db"]["ports"]
     assert all(str(port).startswith("127.0.0.1:") for port in ports)
+    assert _compose_config({name: "placeholder" for name in SECRETS}).returncode == 0
 
 
 def test_tc337_role_script_refuses_missing_passwords() -> None:
