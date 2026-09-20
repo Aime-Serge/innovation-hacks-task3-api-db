@@ -1,5 +1,6 @@
 """Helpers shared by the SQL repositories: escaping, ordering, pagination, guarded execution."""
 
+import asyncio
 from collections.abc import Callable, Sequence
 from typing import Any, cast
 
@@ -7,6 +8,7 @@ from sqlalchemy import CursorResult, Executable, Select, SQLColumnExpression, co
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.errors import ServiceUnavailable
 from app.domain.queries import Page
 from app.repositories.sql.errors import Operation, translate
 
@@ -33,7 +35,13 @@ async def run(
 ) -> CursorResult[Any]:
     """Execute a statement; a database failure becomes the API error for that operation."""
     try:
-        return cast("CursorResult[Any]", await session.execute(statement))
+        async with asyncio.timeout(session.info.get("timeout")):
+            return cast("CursorResult[Any]", await session.execute(statement))
+    except TimeoutError:
+        # The server stopped answering: drop the connection instead of waiting on it again, so a
+        # dead database is reported within seconds and never holds a request open (NFR-312).
+        await session.invalidate()
+        raise ServiceUnavailable("A dependency is not ready.") from None
     except DBAPIError as error:
         mapped = translate(error, operation)
         if mapped is None:

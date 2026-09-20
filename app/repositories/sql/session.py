@@ -101,7 +101,12 @@ class Database:
                 },
             },
         )
-        self._sessions = async_sessionmaker(self.engine, expire_on_commit=False, autoflush=False)
+        self._sessions = async_sessionmaker(
+            self.engine,
+            expire_on_commit=False,
+            autoflush=False,
+            info={"timeout": settings.db_pool_timeout_s},
+        )
         self._slow_ms = settings.db_slow_query_ms
         self._ping_timeout = min(settings.db_pool_timeout_s, 3.0)
         listen(self.engine.sync_engine, "before_cursor_execute", self._before)
@@ -112,7 +117,15 @@ class Database:
 
     async def ping(self) -> bool:
         """FR-322: a real query, not a socket check, and it answers within seconds (NFR-312)."""
-        async with asyncio.timeout(self._ping_timeout), self.engine.connect() as connection:
+        probe = asyncio.ensure_future(self._probe())
+        done, _ = await asyncio.wait({probe}, timeout=self._ping_timeout)
+        if not done:
+            probe.cancel()  # not awaited: cleaning up a hung connection must not hold this answer
+            raise TimeoutError("the database did not answer in time")
+        return probe.result()
+
+    async def _probe(self) -> bool:
+        async with self.engine.connect() as connection:
             await connection.execute(text("SELECT 1"))
         return True
 
