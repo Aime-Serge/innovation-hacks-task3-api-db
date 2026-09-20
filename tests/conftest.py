@@ -1,6 +1,5 @@
 """Shared fixtures: a real app, a controllable clock, fast hashing and seeded accounts."""
 
-import asyncio
 from collections.abc import AsyncIterator, Iterator
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -74,7 +73,7 @@ def _sql_backend(request: pytest.FixtureRequest) -> None:
 @pytest.fixture(scope="session")
 def worker_db(postgres: Postgres) -> str:
     name = sql_support.worker_database()
-    asyncio.run(sql_support.clone_database(postgres, name))
+    sql_support.run_coro(sql_support.clone_database(postgres, name))
     return name
 
 

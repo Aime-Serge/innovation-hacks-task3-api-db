@@ -10,9 +10,11 @@ import asyncio
 import os
 import secrets
 import time
-from collections.abc import Iterator
+from collections.abc import Coroutine, Iterator
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from alembic import command
 from alembic.config import Config
@@ -79,6 +81,12 @@ def _new_passwords() -> Passwords:
     return Passwords(*(secrets.token_urlsafe(24) for _ in range(4)))
 
 
+def run_coro[T](coro: Coroutine[Any, Any, T]) -> T:
+    """Run a coroutine to completion from sync code, even when the caller sits in an event loop."""
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        return pool.submit(asyncio.run, coro).result()
+
+
 def start_container() -> tuple[DockerContainer, Postgres]:
     passwords = _new_passwords()
     container = (
@@ -107,7 +115,7 @@ def _wait_until_ready(postgres: Postgres) -> None:
     deadline = time.monotonic() + 90
     while True:
         try:
-            asyncio.run(probe())
+            run_coro(probe())
             return
         except Exception:
             if time.monotonic() > deadline:
@@ -121,7 +129,7 @@ def _config() -> Config:
     return config
 
 
-def migrate(
+def _migrate_here(
     postgres: Postgres, database: str, revision: str = "head", *, down: bool = False
 ) -> None:
     """Run Alembic as the migration role. The URL goes in the environment, as in production."""
@@ -168,7 +176,7 @@ def iter_tables() -> Iterator[str]:
     yield from TABLES
 
 
-def check_drift(postgres: Postgres, database: str) -> None:
+def _check_here(postgres: Postgres, database: str) -> None:
     """`alembic check`: raises when the models and the migrations disagree (FR-320)."""
     previous = os.environ.get("MIGRATION_DATABASE_URL")
     os.environ["MIGRATION_DATABASE_URL"] = postgres.url("migrator", database)
@@ -189,6 +197,19 @@ async def create_empty_database(postgres: Postgres, name: str) -> None:
         f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)',
         f'CREATE DATABASE "{name}" OWNER ih_migrator',
     )
+
+
+def migrate(
+    postgres: Postgres, database: str, revision: str = "head", *, down: bool = False
+) -> None:
+    """Alembic starts its own event loop, so it always runs in a fresh thread."""
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        pool.submit(_migrate_here, postgres, database, revision, down=down).result()
+
+
+def check_drift(postgres: Postgres, database: str) -> None:
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        pool.submit(_check_here, postgres, database).result()
 
 
 async def amigrate(
