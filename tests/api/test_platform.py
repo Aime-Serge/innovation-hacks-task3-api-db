@@ -313,3 +313,18 @@ async def test_tc323_welcome_page_links_docs_only_when_they_exist() -> None:
         assert 'href="/docs"' not in page
         assert "off in this environment" in page
         assert (await prod.client.post("/")).status_code == 405
+
+
+async def test_tc324_text_the_database_cannot_store_is_a_422_not_a_500(env: Env) -> None:
+    """ADR-327: a NUL character and an unpaired surrogate are refused at the edge."""
+    for name in ("Ada\x00Lovelace", "Ada\ud800"):
+        response = await env.client.post(
+            "/api/v1/projects",
+            content=json.dumps({"name": name}),
+            headers={**env.auth(DEV), "content-type": "application/json"},
+        )
+        assert response.status_code == 422, name
+    login = await env.login("a\x00@example.com", "whatever-password-1")
+    assert login.status_code == 422  # the schema excludes a NUL from every text field
+    query = await env.client.get("/api/v1/tasks?q=%00", headers=env.auth(DEV))
+    assert query.status_code == 422

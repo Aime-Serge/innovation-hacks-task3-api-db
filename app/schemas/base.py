@@ -12,17 +12,19 @@ from pydantic import (
     Field,
     GetJsonSchemaHandler,
     StringConstraints,
+    field_validator,
     model_validator,
 )
 from pydantic.alias_generators import to_camel
 from pydantic.json_schema import JsonSchemaValue
 from pydantic_core import CoreSchema
 
-# Text that PostgreSQL can store (Task 3): no NUL character and no lone surrogate, either of which the
-# database refuses and which would otherwise be a 500 (a fuzzer found both). The character classes
-# are spelled out, and the regex engine is Python's, because the schema is read by ECMA engines and
-# Rust's `\s` and surrogate handling differ from theirs. WS is exactly what `str.strip()` removes.
-BAD = r"\x00\ud800-\udfff"
+# Text that PostgreSQL can store (Task 3): no NUL character, which the database refuses and which
+# would otherwise be a 500 (a fuzzer found it). The character classes are spelled out, and the regex
+# engine is Python's, because the schema is read by ECMA engines and Rust's `\s` differs.
+# WS is exactly what `str.strip()` removes. A lone surrogate cannot be stored either; `ApiModel`
+# refuses it in code, since no schema pattern can say so portably.
+BAD = r"\x00"
 WS = r"\t\n\x0b\x0c\r\x1c-\x1f \x85\xa0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000"
 CLEAN = rf"^[^{BAD}]*$"
 NOT_BLANK = rf"^[^{BAD}]*[^{WS}{BAD}][^{BAD}]*$"
@@ -67,6 +69,16 @@ IsoDate = Annotated[date, BeforeValidator(_iso_string)]
 
 
 class ApiModel(BaseModel):
+    @field_validator("*", mode="after")
+    @classmethod
+    def _storable_text(cls, value: object) -> object:
+        if isinstance(value, str):
+            try:
+                value.encode("utf-8")
+            except UnicodeEncodeError:
+                raise ValueError("Must not contain an unpaired surrogate character.") from None
+        return value
+
     model_config = ConfigDict(
         alias_generator=to_camel,
         validate_by_alias=True,

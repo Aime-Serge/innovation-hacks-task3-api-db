@@ -34,7 +34,7 @@ UNSTORABLE_TEXT = {
     "22P05",
 }  # a NUL or an invalid byte sequence: text PostgreSQL cannot hold
 TRANSIENT = {"40P01", "40001", "55P03", "57014"}  # deadlock, serialization, lock/statement timeout
-UNAVAILABLE_CLASSES = ("08", "53", "57P")  # connection, resources, operator shutdown
+UNAVAILABLE = ("08", "53", "57P")  # connection, resources, operator shutdown
 
 _INVALID = "One or more fields are invalid."
 
@@ -70,21 +70,25 @@ def constraint(error: BaseException) -> str | None:
     return value if isinstance(value, str) else None
 
 
+def _unavailable(error: BaseException) -> bool:
+    """A failure that means the database cannot be reached or is shutting down."""
+    if isinstance(error, PoolTimeoutError | InterfaceError | OSError | TimeoutError):
+        return True
+    if not isinstance(error, DBAPIError):
+        return False
+    state = sqlstate(error)
+    return error.connection_invalidated or (state is not None and state.startswith(UNAVAILABLE))
+
+
 def translate(error: BaseException, operation: Operation) -> Exception | None:
     """Return the API-level error for a database failure, or None when it is not one we map."""
-    if isinstance(error, PoolTimeoutError | OSError | TimeoutError):
-        return ServiceUnavailable("A dependency is not ready.")
-    if isinstance(error, InterfaceError):
+    if _unavailable(error):
         return ServiceUnavailable("A dependency is not ready.")
     if not isinstance(error, DBAPIError):
         return None
     state, name = sqlstate(error), constraint(error)
     if state in TRANSIENT:
         return TransientStoreError(state)
-    if state is not None and state.startswith(UNAVAILABLE_CLASSES):
-        return ServiceUnavailable("A dependency is not ready.")
-    if error.connection_invalidated:
-        return ServiceUnavailable("A dependency is not ready.")
     if state == UNIQUE_VIOLATION and name == "uq_users_email":
         return EmailAlreadyExists("An account with this email already exists.")
     if state == FOREIGN_KEY_VIOLATION:
