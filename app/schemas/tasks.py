@@ -6,14 +6,14 @@ from pydantic import Field
 
 from app.domain.enums import Priority, TaskStatus
 from app.domain.models import Task
-from app.schemas.base import ApiModel, IsoDate, PatchModel, SearchText, TimestampedOut, Title
+from app.schemas.base import CLEAN, ApiModel, IsoDate, PatchModel, SearchText, TimestampedOut, Title
 from app.schemas.common import ListQuery, sort_param
 
 
 class TaskCreate(ApiModel):
     project_id: UUID
     title: Title = Field(examples=["Write the migration plan"])
-    description: str = Field(default="", max_length=4000)
+    description: str = Field(default="", max_length=4000, pattern=CLEAN)
     priority: Priority = Priority.MEDIUM
     due_date: IsoDate | None = Field(default=None, examples=["2026-11-15"])
     assignee_id: UUID | None = None
@@ -23,7 +23,7 @@ class TaskUpdate(PatchModel):
     nullable: ClassVar[frozenset[str]] = frozenset({"due_date", "assignee_id"})
 
     title: Title | None = None
-    description: str | None = Field(default=None, max_length=4000)
+    description: str | None = Field(default=None, max_length=4000, pattern=CLEAN)
     priority: Priority | None = None
     due_date: IsoDate | None = None
     assignee_id: UUID | None = None

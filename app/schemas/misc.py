@@ -7,14 +7,16 @@ from pydantic import Field
 
 from app.domain.enums import ActivityType
 from app.domain.models import Activity
-from app.schemas.base import ApiModel, OutModel
+from app.schemas.base import CLEAN, ApiModel, OutModel
 from app.schemas.common import PageOut
 from app.schemas.tasks import TaskOut
 
 
 class LoginRequest(ApiModel):
-    email: str = Field(min_length=1, max_length=254, examples=["ada@example.com"])
-    password: str = Field(min_length=1, max_length=128, json_schema_extra={"format": "password"})
+    email: str = Field(min_length=1, max_length=254, pattern=CLEAN, examples=["ada@example.com"])
+    password: str = Field(
+        min_length=1, max_length=128, pattern=CLEAN, json_schema_extra={"format": "password"}
+    )
     model_config = ApiModel.model_config | {"str_strip_whitespace": False}
 
 

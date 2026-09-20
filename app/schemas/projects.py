@@ -7,6 +7,7 @@ from pydantic import Field
 from app.domain.enums import ProjectStatus
 from app.domain.models import Progress, Project
 from app.schemas.base import (
+    CLEAN,
     ApiModel,
     IsoDate,
     Name,
@@ -34,7 +35,7 @@ class ProgressOut(OutModel):
 
 class ProjectCreate(ApiModel):
     name: Name = Field(examples=["Atlas API Gateway"])
-    description: str = Field(default="", max_length=2000)
+    description: str = Field(default="", max_length=2000, pattern=CLEAN)
     status: ProjectStatus = ProjectStatus.PLANNED
     due_date: IsoDate | None = Field(default=None, examples=["2026-12-01"])
 
@@ -43,7 +44,7 @@ class ProjectUpdate(PatchModel):
     nullable: ClassVar[frozenset[str]] = frozenset({"due_date"})
 
     name: Name | None = None
-    description: str | None = Field(default=None, max_length=2000)
+    description: str | None = Field(default=None, max_length=2000, pattern=CLEAN)
     status: ProjectStatus | None = None
     due_date: IsoDate | None = None
 

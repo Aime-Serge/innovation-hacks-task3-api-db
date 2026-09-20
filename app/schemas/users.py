@@ -6,6 +6,7 @@ from pydantic import Field, StringConstraints
 from app.domain.enums import Role, Theme
 from app.domain.models import User
 from app.schemas.base import (
+    CLEAN,
     ApiModel,
     Email,
     HttpsUrl,
@@ -18,7 +19,9 @@ from app.schemas.base import (
 from app.schemas.common import ListQuery, sort_param
 
 # Passwords are never trimmed: whitespace is part of the secret.
-Password = Annotated[str, StringConstraints(min_length=12, max_length=128, strip_whitespace=False)]
+Password = Annotated[
+    str, StringConstraints(min_length=12, max_length=128, strip_whitespace=False, pattern=CLEAN)
+]
 
 
 class Preferences(OutModel):

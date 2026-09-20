@@ -18,13 +18,18 @@ from pydantic.alias_generators import to_camel
 from pydantic.json_schema import JsonSchemaValue
 from pydantic_core import CoreSchema
 
-# Not blank: at least one character no engine treats as whitespace. The class is spelled out
-# because Python trims \x1c-\x1f and \x85 while ECMA regexes do not call them whitespace.
-NOT_BLANK = r"[^\s\x1c-\x1f\x85]"
-# Stated in the schema too, so the document never promises what trimming would then reject.
+# Text that PostgreSQL can store (Task 3): no NUL character and no lone surrogate, either of which the
+# database refuses and which would otherwise be a 500 (a fuzzer found both). The character classes
+# are spelled out, and the regex engine is Python's, because the schema is read by ECMA engines and
+# Rust's `\s` and surrogate handling differ from theirs. WS is exactly what `str.strip()` removes.
+BAD = r"\x00\ud800-\udfff"
+WS = r"\t\n\x0b\x0c\r\x1c-\x1f \x85\xa0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000"
+CLEAN = rf"^[^{BAD}]*$"
+NOT_BLANK = rf"^[^{BAD}]*[^{WS}{BAD}][^{BAD}]*$"
 Name = Annotated[str, StringConstraints(min_length=1, max_length=80, pattern=NOT_BLANK)]
 Title = Annotated[str, StringConstraints(min_length=1, max_length=120, pattern=NOT_BLANK)]
-SearchText = Annotated[str, StringConstraints(max_length=100)]
+SearchText = Annotated[str, StringConstraints(max_length=100, pattern=CLEAN)]
+Text = Annotated[str, StringConstraints(pattern=CLEAN)]
 
 
 def _https_only(value: str) -> str:
@@ -36,7 +41,8 @@ def _https_only(value: str) -> str:
 
 # The host is ASCII in the pattern so the schema never promises a URL the parser would refuse.
 _HTTPS_PATTERN = (
-    r"^https://[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?(:[0-9]{1,5})?([/?#][^ \t\r\n]*)?$"
+    r"^https://[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?(:[0-9]{1,5})?"
+    rf"([/?#][^ \t\r\n{BAD}]*)?$"
 )
 HttpsUrl = Annotated[
     str, StringConstraints(max_length=2048, pattern=_HTTPS_PATTERN), AfterValidator(_https_only)
@@ -46,7 +52,7 @@ HttpsUrl = Annotated[
 # engine and to the ECMA engines that read the schema; a fuzzer found addresses they disagree on.
 # A pragmatic address check, stated identically in the schema and the validator (ADR-222): the
 # stricter library check also refuses reserved domains such as `.test` that the schema allows.
-EMAIL_PATTERN = r"^[^@ \t\r\n]+@[^@ \t\r\n]+\.[^@ \t\r\n]+$"
+EMAIL_PATTERN = rf"^[^@ \t\r\n{BAD}]+@[^@ \t\r\n{BAD}]+\.[^@ \t\r\n{BAD}]+$"
 Email = Annotated[str, StringConstraints(max_length=254, pattern=EMAIL_PATTERN, to_lower=True)]
 
 
@@ -67,6 +73,7 @@ class ApiModel(BaseModel):
         validate_by_name=False,
         extra="forbid",
         str_strip_whitespace=True,
+        regex_engine="python-re",
     )
 
 

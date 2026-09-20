@@ -162,6 +162,7 @@
             ],
             "maxLength": 254,
             "minLength": 1,
+            "pattern": "^[^\\x00\\ud800-\\udfff]*$",
             "title": "Email",
             "type": "string"
           },
@@ -169,6 +170,7 @@
             "format": "password",
             "maxLength": 128,
             "minLength": 1,
+            "pattern": "^[^\\x00\\ud800-\\udfff]*$",
             "title": "Password",
             "type": "string"
           }
@@ -416,6 +418,7 @@
           "description": {
             "default": "",
             "maxLength": 2000,
+            "pattern": "^[^\\x00\\ud800-\\udfff]*$",
             "title": "Description",
             "type": "string"
           },
@@ -440,7 +443,7 @@
             ],
             "maxLength": 80,
             "minLength": 1,
-            "pattern": "[^\\s\\x1c-\\x1f\\x85]",
+            "pattern": "^[^\\x00\\ud800-\\udfff]*[^\\t\\n\\x0b\\x0c\\r\\x1c-\\x1f \\x85\\xa0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\x00\\ud800-\\udfff][^\\x00\\ud800-\\udfff]*$",
             "title": "Name",
             "type": "string"
           },
@@ -537,6 +540,7 @@
         "properties": {
           "description": {
             "maxLength": 2000,
+            "pattern": "^[^\\x00\\ud800-\\udfff]*$",
             "title": "Description",
             "type": "string"
           },
@@ -555,7 +559,7 @@
           "name": {
             "maxLength": 80,
             "minLength": 1,
-            "pattern": "[^\\s\\x1c-\\x1f\\x85]",
+            "pattern": "^[^\\x00\\ud800-\\udfff]*[^\\t\\n\\x0b\\x0c\\r\\x1c-\\x1f \\x85\\xa0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\x00\\ud800-\\udfff][^\\x00\\ud800-\\udfff]*$",
             "title": "Name",
             "type": "string"
           },
@@ -650,6 +654,7 @@
           "description": {
             "default": "",
             "maxLength": 4000,
+            "pattern": "^[^\\x00\\ud800-\\udfff]*$",
             "title": "Description",
             "type": "string"
           },
@@ -683,7 +688,7 @@
             ],
             "maxLength": 120,
             "minLength": 1,
-            "pattern": "[^\\s\\x1c-\\x1f\\x85]",
+            "pattern": "^[^\\x00\\ud800-\\udfff]*[^\\t\\n\\x0b\\x0c\\r\\x1c-\\x1f \\x85\\xa0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\x00\\ud800-\\udfff][^\\x00\\ud800-\\udfff]*$",
             "title": "Title",
             "type": "string"
           }
@@ -815,6 +820,7 @@
           },
           "description": {
             "maxLength": 4000,
+            "pattern": "^[^\\x00\\ud800-\\udfff]*$",
             "title": "Description",
             "type": "string"
           },
@@ -836,7 +842,7 @@
           "title": {
             "maxLength": 120,
             "minLength": 1,
-            "pattern": "[^\\s\\x1c-\\x1f\\x85]",
+            "pattern": "^[^\\x00\\ud800-\\udfff]*[^\\t\\n\\x0b\\x0c\\r\\x1c-\\x1f \\x85\\xa0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\x00\\ud800-\\udfff][^\\x00\\ud800-\\udfff]*$",
             "title": "Title",
             "type": "string"
           }
@@ -889,7 +895,7 @@
             "anyOf": [
               {
                 "maxLength": 2048,
-                "pattern": "^https://[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?(:[0-9]{1,5})?([/?#][^ \\t\\r\\n]*)?$",
+                "pattern": "^https://[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?(:[0-9]{1,5})?([/?#][^ \\t\\r\\n\\x00\\ud800-\\udfff]*)?$",
                 "type": "string"
               },
               {
@@ -903,7 +909,7 @@
               "ada@example.com"
             ],
             "maxLength": 254,
-            "pattern": "^[^@ \\t\\r\\n]+@[^@ \\t\\r\\n]+\\.[^@ \\t\\r\\n]+$",
+            "pattern": "^[^@ \\t\\r\\n\\x00\\ud800-\\udfff]+@[^@ \\t\\r\\n\\x00\\ud800-\\udfff]+\\.[^@ \\t\\r\\n\\x00\\ud800-\\udfff]+$",
             "title": "Email",
             "type": "string"
           },
@@ -913,7 +919,7 @@
             ],
             "maxLength": 80,
             "minLength": 1,
-            "pattern": "[^\\s\\x1c-\\x1f\\x85]",
+            "pattern": "^[^\\x00\\ud800-\\udfff]*[^\\t\\n\\x0b\\x0c\\r\\x1c-\\x1f \\x85\\xa0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\x00\\ud800-\\udfff][^\\x00\\ud800-\\udfff]*$",
             "title": "Name",
             "type": "string"
           },
@@ -921,6 +927,7 @@
             "description": "12 to 128 characters, not equal to the email.",
             "maxLength": 128,
             "minLength": 12,
+            "pattern": "^[^\\x00\\ud800-\\udfff]*$",
             "title": "Password",
             "type": "string"
           },
@@ -1010,7 +1017,7 @@
             "anyOf": [
               {
                 "maxLength": 2048,
-                "pattern": "^https://[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?(:[0-9]{1,5})?([/?#][^ \\t\\r\\n]*)?$",
+                "pattern": "^https://[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?(:[0-9]{1,5})?([/?#][^ \\t\\r\\n\\x00\\ud800-\\udfff]*)?$",
                 "type": "string"
               },
               {
@@ -1022,7 +1029,7 @@
           "name": {
             "maxLength": 80,
             "minLength": 1,
-            "pattern": "[^\\s\\x1c-\\x1f\\x85]",
+            "pattern": "^[^\\x00\\ud800-\\udfff]*[^\\t\\n\\x0b\\x0c\\r\\x1c-\\x1f \\x85\\xa0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\x00\\ud800-\\udfff][^\\x00\\ud800-\\udfff]*$",
             "title": "Name",
             "type": "string"
           },
@@ -1587,6 +1594,7 @@
               "anyOf": [
                 {
                   "maxLength": 100,
+                  "pattern": "^[^\\x00\\ud800-\\udfff]*$",
                   "type": "string"
                 },
                 {
@@ -2502,6 +2510,7 @@
               "anyOf": [
                 {
                   "maxLength": 100,
+                  "pattern": "^[^\\x00\\ud800-\\udfff]*$",
                   "type": "string"
                 },
                 {
@@ -2791,6 +2800,7 @@
               "anyOf": [
                 {
                   "maxLength": 100,
+                  "pattern": "^[^\\x00\\ud800-\\udfff]*$",
                   "type": "string"
                 },
                 {
@@ -4050,6 +4060,7 @@
               "anyOf": [
                 {
                   "maxLength": 100,
+                  "pattern": "^[^\\x00\\ud800-\\udfff]*$",
                   "type": "string"
                 },
                 {

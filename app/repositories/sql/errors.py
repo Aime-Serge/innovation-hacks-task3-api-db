@@ -29,6 +29,10 @@ _log = logging.getLogger(LOGGER_NAME)
 UNIQUE_VIOLATION = "23505"
 FOREIGN_KEY_VIOLATION = "23503"
 CHECK_VIOLATION = "23514"
+UNSTORABLE_TEXT = {
+    "22021",
+    "22P05",
+}  # a NUL or an invalid byte sequence: text PostgreSQL cannot hold
 TRANSIENT = {"40P01", "40001", "55P03", "57014"}  # deadlock, serialization, lock/statement timeout
 UNAVAILABLE_CLASSES = ("08", "53", "57P")  # connection, resources, operator shutdown
 
@@ -87,6 +91,10 @@ def translate(error: BaseException, operation: Operation) -> Exception | None:
         return _foreign_key(name, operation)
     if state == CHECK_VIOLATION:
         return _check(name)
+    if state in UNSTORABLE_TEXT:
+        return ValidationFailed(
+            _INVALID, [ErrorDetail("body", "The text contains a character that cannot be stored.")]
+        )
     return None
 
 
