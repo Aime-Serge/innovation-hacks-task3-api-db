@@ -97,6 +97,7 @@ END` |
 | Index | Definition |
 | --- | --- |
 | `ix_tasks_assignee_id_status` | `CREATE INDEX ix_tasks_assignee_id_status ON public.tasks USING btree (assignee_id, status) WHERE (assignee_id IS NOT NULL)` |
+| `ix_tasks_created_at_id` | `CREATE INDEX ix_tasks_created_at_id ON public.tasks USING btree (created_at, id)` |
 | `ix_tasks_description_trgm` | `CREATE INDEX ix_tasks_description_trgm ON public.tasks USING gin (description gin_trgm_ops)` |
 | `ix_tasks_due_date_id` | `CREATE INDEX ix_tasks_due_date_id ON public.tasks USING btree (due_date, id)` |
 | `ix_tasks_due_date_open` | `CREATE INDEX ix_tasks_due_date_open ON public.tasks USING btree (due_date) WHERE (status <> 'done'::text)` |

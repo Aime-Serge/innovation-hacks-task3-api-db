@@ -55,6 +55,7 @@ class TaskQuery:
     descending: bool = False
     page: int = 1
     page_size: int = 20
+    with_total: bool = True  # False when the caller never reads the total: it saves a count
 
 
 @dataclass(frozen=True)

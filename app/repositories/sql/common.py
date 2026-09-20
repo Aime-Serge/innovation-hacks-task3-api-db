@@ -100,17 +100,37 @@ async def page_of[T](
     page: int,
     page_size: int,
     build: Callable[[Any], T],
+    *,
+    window: bool = False,
+    with_total: bool = True,
 ) -> Page[T]:
-    """One query returns the rows and the total (a window count), so a list costs one query.
+    """One page of rows and the total.
 
-    Only a page past the end has no row to carry the total, and then a count query is used.
+    Small tables use a window count (`window=True`): the rows carry the total, so a list is one
+    query (ADR-324). On a table of tens of thousands of rows that count forces the database to
+    materialise and sort every match, which cost 130 ms per request at 20,000 tasks, so there the
+    page is fetched alone and the total is counted separately, and only when the page is full:
+    a short page already tells the total (ADR-328).
     """
-    paged = statement.add_columns(func.count().over().label(TOTAL))
-    result = await run(session, paged.limit(page_size).offset((page - 1) * page_size), "read")
-    rows = result.all()
-    if rows:
-        return Page([build(row) for row in rows], page, page_size, int(getattr(rows[0], TOTAL)))
+    offset = (page - 1) * page_size
+    if window:
+        paged = statement.add_columns(func.count().over().label(TOTAL))
+        rows = (await run(session, paged.limit(page_size).offset(offset), "read")).all()
+        if rows:
+            return Page([build(row) for row in rows], page, page_size, int(getattr(rows[0], TOTAL)))
+    else:
+        rows = (await run(session, statement.limit(page_size).offset(offset), "read")).all()
+        if 0 < len(rows) < page_size or (rows and not with_total):
+            return Page([build(row) for row in rows], page, page_size, offset + len(rows))
+        if rows or page > 1:
+            total = await _count(session, count_source)
+            return Page([build(row) for row in rows], page, page_size, total)
+        return Page([], page, page_size, 0)
     if page == 1:
         return Page([], page, page_size, 0)
+    return Page([], page, page_size, await _count(session, count_source))
+
+
+async def _count(session: AsyncSession, count_source: Select[Any]) -> int:
     counted = await run(session, select(func.count()).select_from(count_source.subquery()), "read")
-    return Page([], page, page_size, int(counted.scalar_one()))
+    return int(counted.scalar_one())

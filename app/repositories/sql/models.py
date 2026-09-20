@@ -144,6 +144,7 @@ class TaskRow(Base):
         ),
         Index("ix_tasks_due_date_open", "due_date", postgresql_where=text("status <> 'done'")),
         Index("ix_tasks_due_date_id", "due_date", "id"),
+        Index("ix_tasks_created_at_id", "created_at", "id"),
         Index("ix_tasks_priority_rank_id", text("priority_rank DESC"), "id"),
         Index(
             "ix_tasks_title_trgm",

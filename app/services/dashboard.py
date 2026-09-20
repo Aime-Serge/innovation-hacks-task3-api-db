@@ -39,6 +39,7 @@ class DashboardService:
                     due_before=today + timedelta(days=UPCOMING_DAYS),
                     sort="dueDate",
                     page_size=50,
+                    with_total=False,  # only the items are shown
                 )
             )
             rate = 0 if totals.total == 0 else round(totals.done / totals.total * 100)

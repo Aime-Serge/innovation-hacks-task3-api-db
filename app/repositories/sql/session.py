@@ -90,7 +90,10 @@ class Database:
             pool_size=settings.db_pool_size,
             max_overflow=settings.db_max_overflow,
             pool_timeout=settings.db_pool_timeout_s,
-            pool_pre_ping=True,
+            # No pre-ping: it costs a round trip per checkout. A dead connection is handled when it
+            # fails (SQLAlchemy discards the whole pool, ADR-329), so the next request reconnects.
+            pool_pre_ping=False,
+            pool_recycle=1800,
             connect_args={
                 "timeout": settings.db_pool_timeout_s,
                 # A dead server must never hold a request open longer than a query may run.
@@ -104,19 +107,25 @@ class Database:
                 },
             },
         )
+        info = {"timeout": settings.db_pool_timeout_s}
         self._sessions = async_sessionmaker(
-            self.engine,
+            self.engine, expire_on_commit=False, autoflush=False, info=info
+        )
+        # Reads run in autocommit: one statement, no BEGIN and no ROLLBACK round trips. At READ
+        # COMMITTED a transaction adds no consistency to a read, so nothing is lost (ADR-329).
+        self._read_sessions = async_sessionmaker(
+            self.engine.execution_options(isolation_level="AUTOCOMMIT"),
             expire_on_commit=False,
             autoflush=False,
-            info={"timeout": settings.db_pool_timeout_s},
+            info=info,
         )
         self._slow_ms = settings.db_slow_query_ms
         self._ping_timeout = min(settings.db_pool_timeout_s, 3.0)
         listen(self.engine.sync_engine, "before_cursor_execute", self._before)
         listen(self.engine.sync_engine, "after_cursor_execute", self._after)
 
-    def uow(self) -> SqlUnitOfWork:
-        return SqlUnitOfWork(self._sessions)
+    def uow(self, read_only: bool = False) -> SqlUnitOfWork:
+        return SqlUnitOfWork(self._read_sessions if read_only else self._sessions)
 
     async def ping(self) -> bool:
         """FR-322: a real query, not a socket check, and it answers within seconds (NFR-312)."""

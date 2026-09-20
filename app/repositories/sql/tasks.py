@@ -105,6 +105,7 @@ class SqlTaskRepository:
             query.page,
             query.page_size,
             mappers.task_from,
+            with_total=query.with_total,
         )
 
     async def add(self, task: Task) -> Task:

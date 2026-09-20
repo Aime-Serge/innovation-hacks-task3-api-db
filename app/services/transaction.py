@@ -6,7 +6,9 @@ from typing import Final
 from app.core.errors import ServiceUnavailable
 from app.repositories.base import TransientStoreError, UnitOfWork
 
-UowFactory = Callable[[], UnitOfWork]
+# `read_only=True` asks for a unit of work that will only read (the SQL one then skips the
+# transaction); a factory that has no such distinction ignores it.
+UowFactory = Callable[..., UnitOfWork]
 
 RETRIES: Final = 2  # a deadlock or lock timeout is retried at most twice, then it is a 503
 
@@ -27,7 +29,7 @@ async def _run[T](
     attempt = 0
     while True:
         try:
-            async with factory() as uow:
+            async with factory(read_only=not commit) if not commit else factory() as uow:
                 result = await work(uow)
                 if commit:
                     await uow.commit()

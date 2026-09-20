@@ -68,6 +68,7 @@ class SqlProjectRepository:
             query.page,
             query.page_size,
             mappers.project_from,
+            window=True,
         )
 
     async def add(self, project: Project) -> Project:

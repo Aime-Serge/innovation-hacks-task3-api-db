@@ -79,7 +79,9 @@ def build_container(
             MemoryTaskRepository(),
             MemoryActivityRepository(),
         )
-        uow = lambda: memory  # noqa: E731 - the same shared repositories for every operation
+
+        def uow(read_only: bool = False) -> MemoryUnitOfWork:
+            return memory  # the same shared repositories for every operation
 
         async def repositories_respond() -> bool:
             await memory.users.count_leads()

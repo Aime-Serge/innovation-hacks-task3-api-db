@@ -71,6 +71,7 @@ class SqlUserRepository:
             query.page,
             query.page_size,
             mappers.user_from,
+            window=True,
         )
 
     async def add(self, user: User) -> User:
