@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 from dataclasses import replace
 from uuid import UUID
 
@@ -12,7 +13,7 @@ class MemoryUserRepository:
         self._items: dict[UUID, User] = {}
         self._store = Store()
 
-    async def get(self, user_id: UUID) -> User | None:
+    async def get(self, user_id: UUID, *, for_update: bool = False) -> User | None:
         return self._items.get(user_id)
 
     async def get_by_email(self, email: str) -> User | None:
@@ -44,6 +45,11 @@ class MemoryUserRepository:
             self._items[user.id] = replace(user)
         return user
 
+    async def add_many(self, users: Sequence[User]) -> None:
+        async with self._store.lock:
+            for user in users:
+                self._items[user.id] = replace(user)
+
     async def update(self, user: User) -> User:
         async with self._store.lock:
             self._items[user.id] = replace(user)
@@ -53,5 +59,5 @@ class MemoryUserRepository:
         async with self._store.lock:
             return self._items.pop(user_id, None) is not None
 
-    async def count_leads(self) -> int:
+    async def count_leads(self, *, for_update: bool = False) -> int:
         return sum(1 for user in self._items.values() if user.role is Role.LEAD)

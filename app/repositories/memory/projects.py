@@ -1,6 +1,8 @@
+from collections.abc import Sequence
 from dataclasses import replace
 from uuid import UUID
 
+from app.domain.enums import ProjectStatus
 from app.domain.models import Project
 from app.repositories.base import Page, ProjectQuery
 from app.repositories.memory.common import (
@@ -17,7 +19,7 @@ class MemoryProjectRepository:
         self._items: dict[UUID, Project] = {}
         self._store = Store()
 
-    async def get(self, project_id: UUID) -> Project | None:
+    async def get(self, project_id: UUID, *, for_update: bool = False) -> Project | None:
         return self._items.get(project_id)
 
     async def list(self, query: ProjectQuery) -> Page[Project]:
@@ -54,6 +56,11 @@ class MemoryProjectRepository:
             self._items[project.id] = replace(project)
         return project
 
+    async def add_many(self, projects: Sequence[Project]) -> None:
+        async with self._store.lock:
+            for project in projects:
+                self._items[project.id] = replace(project)
+
     async def update(self, project: Project) -> Project:
         async with self._store.lock:
             self._items[project.id] = replace(project)
@@ -65,3 +72,6 @@ class MemoryProjectRepository:
 
     async def count_by_owner(self, owner_id: UUID) -> int:
         return sum(1 for project in self._items.values() if project.owner_id == owner_id)
+
+    async def count(self, statuses: Sequence[ProjectStatus] = ()) -> int:
+        return sum(1 for p in self._items.values() if not statuses or p.status in statuses)

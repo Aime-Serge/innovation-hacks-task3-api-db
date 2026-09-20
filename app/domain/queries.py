@@ -61,3 +61,13 @@ class TaskQuery:
 class ActivityQuery:
     page: int = 1
     page_size: int = 10
+
+
+@dataclass(frozen=True)
+class TaskTotals:
+    """Dashboard aggregates over all tasks, computed in one pass (BR-304, FR-310)."""
+
+    total: int
+    done: int
+    open: int
+    overdue: int

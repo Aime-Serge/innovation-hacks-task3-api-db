@@ -1,8 +1,11 @@
+from collections.abc import Sequence
 from dataclasses import replace
+from datetime import date
 from uuid import UUID
 
 from app.domain.enums import TaskStatus
 from app.domain.models import Progress, Task
+from app.domain.queries import TaskTotals
 from app.domain.rules import PRIORITY_RANK, is_overdue, progress
 from app.repositories.base import Page, TaskQuery
 from app.repositories.memory.common import (
@@ -19,7 +22,7 @@ class MemoryTaskRepository:
         self._items: dict[UUID, Task] = {}
         self._store = Store()
 
-    async def get(self, task_id: UUID) -> Task | None:
+    async def get(self, task_id: UUID, *, for_update: bool = False) -> Task | None:
         return self._items.get(task_id)
 
     async def list(self, query: TaskQuery) -> Page[Task]:
@@ -47,6 +50,11 @@ class MemoryTaskRepository:
             self._items[task.id] = replace(task)
         return task
 
+    async def add_many(self, tasks: Sequence[Task]) -> None:
+        async with self._store.lock:
+            for task in tasks:
+                self._items[task.id] = replace(task)
+
     async def update(self, task: Task) -> Task:
         async with self._store.lock:
             self._items[task.id] = replace(task)
@@ -60,6 +68,15 @@ class MemoryTaskRepository:
         own = [task for task in self._items.values() if task.project_id == project_id]
         done = sum(1 for task in own if task.status is TaskStatus.DONE)
         return progress(len(own), done)
+
+    async def progress_for_many(self, project_ids: Sequence[UUID]) -> dict[UUID, Progress]:
+        return {project_id: await self.progress_for(project_id) for project_id in project_ids}
+
+    async def totals(self, today: date) -> TaskTotals:
+        tasks = list(self._items.values())
+        done = sum(1 for task in tasks if task.status is TaskStatus.DONE)
+        overdue = sum(1 for task in tasks if is_overdue(task, today))
+        return TaskTotals(len(tasks), done, len(tasks) - done, overdue)
 
     async def unassign_user(self, user_id: UUID) -> int:
         async with self._store.lock:

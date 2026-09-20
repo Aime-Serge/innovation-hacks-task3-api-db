@@ -1,6 +1,6 @@
 """Domain entities: immutable, so a repository can hand out its data without copying risks."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date, datetime
 from uuid import UUID
 
@@ -12,7 +12,8 @@ class User:
     id: UUID
     name: str
     email: str
-    password_hash: str
+    # Not part of equality or repr: only the login lookup loads it (NFR-318, ADR-315).
+    password_hash: str = field(compare=False, repr=False)
     role: Role
     avatar_url: str | None
     theme: Theme

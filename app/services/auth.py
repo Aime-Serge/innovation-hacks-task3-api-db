@@ -2,21 +2,23 @@ from app.core.clock import Clock
 from app.core.errors import InvalidCredentials, Unauthenticated
 from app.core.security import IssuedToken, PasswordHasher, TokenCodec
 from app.domain.models import User
-from app.repositories.base import UserRepository
+from app.services import transaction
+from app.services.transaction import UowFactory
 
 
 class AuthService:
     def __init__(
-        self, users: UserRepository, hasher: PasswordHasher, tokens: TokenCodec, clock: Clock
+        self, uow: UowFactory, hasher: PasswordHasher, tokens: TokenCodec, clock: Clock
     ) -> None:
-        self._users = users
+        self._uow = uow
         self._hasher = hasher
         self._tokens = tokens
         self._clock = clock
 
     async def login(self, email: str, password: str) -> IssuedToken:
         """Unknown email and wrong password are indistinguishable (FR-203, TH-203)."""
-        user = await self._users.get_by_email(email)
+        # The only lookup that loads the password hash (NFR-318).
+        user = await transaction.read(self._uow, lambda uow: uow.users.get_by_email(email))
         if user is None:
             await self._hasher.verify_dummy(password)
             raise InvalidCredentials("The email or password is incorrect.")
@@ -26,7 +28,8 @@ class AuthService:
 
     async def authenticate(self, token: str) -> User:
         """The role is read from the store, so a demotion applies immediately (section 9)."""
-        user = await self._users.get(self._tokens.subject(token, self._clock.now()))
+        user_id = self._tokens.subject(token, self._clock.now())
+        user = await transaction.read(self._uow, lambda uow: uow.users.get(user_id))
         if user is None:
             raise Unauthenticated("The access token is missing, invalid or expired.")
         return user

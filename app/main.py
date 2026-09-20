@@ -56,8 +56,11 @@ def create_app(
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
-        await apply_seed_profile(container)
-        yield
+        try:
+            await apply_seed_profile(container)
+            yield
+        finally:
+            await container.close()
 
     docs = settings.docs_on
     app = FastAPI(

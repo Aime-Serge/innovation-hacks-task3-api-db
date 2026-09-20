@@ -4,7 +4,9 @@ from datetime import timedelta
 from app.core.clock import Clock
 from app.domain.enums import ProjectStatus, TaskStatus
 from app.domain.models import Task
-from app.repositories.base import ProjectQuery, ProjectRepository, TaskQuery, TaskRepository
+from app.repositories.base import TaskQuery, UnitOfWork
+from app.services import transaction
+from app.services.transaction import UowFactory
 
 OPEN_STATUSES = [TaskStatus.TODO, TaskStatus.IN_PROGRESS, TaskStatus.IN_REVIEW]
 UPCOMING_DAYS = 7
@@ -20,28 +22,26 @@ class DashboardSummary:
 
 
 class DashboardService:
-    def __init__(self, projects: ProjectRepository, tasks: TaskRepository, clock: Clock) -> None:
-        self._projects = projects
-        self._tasks = tasks
+    def __init__(self, uow: UowFactory, clock: Clock) -> None:
+        self._uow = uow
         self._clock = clock
 
     async def summary(self) -> DashboardSummary:
-        today = self._clock.today()
-        active = await self._projects.list(
-            ProjectQuery(statuses=[ProjectStatus.ACTIVE], page_size=1)
-        )
-        everything = await self._tasks.list(TaskQuery(page_size=1))
-        done = await self._tasks.list(TaskQuery(statuses=[TaskStatus.DONE], page_size=1))
-        open_tasks = await self._tasks.list(TaskQuery(statuses=OPEN_STATUSES, page_size=1))
-        overdue = await self._tasks.list(TaskQuery(overdue=True, today=today, page_size=1))
-        upcoming = await self._tasks.list(
-            TaskQuery(
-                statuses=OPEN_STATUSES,
-                due_after=today,
-                due_before=today + timedelta(days=UPCOMING_DAYS),
-                sort="dueDate",
-                page_size=50,
+        today = self._clock.today()  # BR-307: the date comes from the injected clock
+
+        async def work(uow: UnitOfWork) -> DashboardSummary:
+            active = await uow.projects.count([ProjectStatus.ACTIVE])
+            totals = await uow.tasks.totals(today)  # one aggregate query (BR-304)
+            upcoming = await uow.tasks.list(
+                TaskQuery(
+                    statuses=OPEN_STATUSES,
+                    due_after=today,
+                    due_before=today + timedelta(days=UPCOMING_DAYS),
+                    sort="dueDate",
+                    page_size=50,
+                )
             )
-        )
-        rate = 0 if everything.total == 0 else round(done.total / everything.total * 100)
-        return DashboardSummary(active.total, open_tasks.total, overdue.total, rate, upcoming.items)
+            rate = 0 if totals.total == 0 else round(totals.done / totals.total * 100)
+            return DashboardSummary(active, totals.open, totals.overdue, rate, upcoming.items)
+
+        return await transaction.read(self._uow, work)
