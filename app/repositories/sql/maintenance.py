@@ -5,10 +5,16 @@ from sqlalchemy import text
 from app.repositories.sql.session import Database
 
 # Children first, so no foreign key ever objects. The application role may DELETE, not TRUNCATE.
-_TABLES = ("activity", "tasks", "projects", "users")
+# Fixed statements, not built from names, so there is nothing to inject into.
+_CLEAR = (
+    text("DELETE FROM activity"),
+    text("DELETE FROM tasks"),
+    text("DELETE FROM projects"),
+    text("DELETE FROM users"),
+)
 
 
 async def clear_all(database: Database) -> None:
     async with database.engine.begin() as connection:
-        for table in _TABLES:
-            await connection.execute(text(f"DELETE FROM {table}"))  # noqa: S608 - fixed names
+        for statement in _CLEAR:
+            await connection.execute(statement)

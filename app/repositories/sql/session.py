@@ -54,7 +54,8 @@ class SqlUnitOfWork:
         tb: TracebackType | None,
     ) -> None:
         session = self._session
-        assert session is not None  # noqa: S101 - entered before exited, by construction
+        if session is None:
+            raise RuntimeError("the unit of work was left before it was entered")
         try:
             await session.rollback()  # a no-op after a commit; undoes everything otherwise
         finally:
@@ -65,7 +66,8 @@ class SqlUnitOfWork:
                 raise mapped from None
 
     async def commit(self) -> None:
-        assert self._session is not None  # noqa: S101
+        if self._session is None:
+            raise RuntimeError("commit needs an entered unit of work")
         try:
             await self._session.commit()
         except Exception as error:
@@ -80,7 +82,8 @@ class Database:
 
     def __init__(self, settings: Settings) -> None:
         url = settings.database_url
-        assert url is not None  # noqa: S101 - Settings guarantees it when the backend is sql
+        if url is None:  # Settings guarantees a URL when the backend is sql
+            raise RuntimeError("DATABASE_URL: required when STORAGE_BACKEND=sql")
         self.engine: AsyncEngine = create_async_engine(
             url.get_secret_value(),
             poolclass=AsyncAdaptedQueuePool,

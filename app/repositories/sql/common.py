@@ -77,7 +77,8 @@ async def run_many(
         await connection.execute(text("SET LOCAL statement_timeout = '300s'"))
         raw = await connection.get_raw_connection()
         driver = raw.driver_connection
-        assert driver is not None  # noqa: S101 - the pool always holds a live driver connection
+        if driver is None:
+            raise RuntimeError("the pool returned a connection without a driver")
         await driver.copy_records_to_table(
             table.name,
             records=records,
