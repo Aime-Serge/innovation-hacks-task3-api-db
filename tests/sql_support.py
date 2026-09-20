@@ -217,3 +217,33 @@ async def amigrate(
 ) -> None:
     """`migrate` for async tests: Alembic starts its own event loop, so it runs in a thread."""
     await asyncio.to_thread(migrate, postgres, database, revision, down=down)
+
+
+class Server:
+    """A container the test may pause, restart or stop. Its host port is read fresh each time,
+    because Docker may hand out a different one after a restart."""
+
+    def __init__(self) -> None:
+        self.container, first = start_container()
+        self.passwords = first.passwords
+
+    @property
+    def postgres(self) -> Postgres:
+        return Postgres(
+            self.container.get_container_host_ip(),
+            int(self.container.get_exposed_port(5432)),
+            self.passwords,
+        )
+
+    def pause(self) -> None:
+        self.container.get_wrapped_container().pause()
+
+    def unpause(self) -> None:
+        self.container.get_wrapped_container().unpause()
+
+    def restart(self) -> None:
+        self.container.get_wrapped_container().restart(timeout=10)
+        _wait_until_ready(self.postgres)
+
+    def stop(self) -> None:
+        self.container.stop()

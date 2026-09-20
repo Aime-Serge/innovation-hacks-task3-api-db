@@ -1,5 +1,6 @@
 """Engine, pool, per-operation session and the unit of work (sections 7 and 8)."""
 
+import asyncio
 import hashlib
 import logging
 import time
@@ -89,6 +90,8 @@ class Database:
             pool_pre_ping=True,
             connect_args={
                 "timeout": settings.db_pool_timeout_s,
+                # A dead server must never hold a request open longer than a query may run.
+                "command_timeout": settings.db_statement_timeout_ms / 1000 + 1,
                 "server_settings": {
                     "application_name": "devdash-api",
                     "statement_timeout": str(settings.db_statement_timeout_ms),
@@ -100,6 +103,7 @@ class Database:
         )
         self._sessions = async_sessionmaker(self.engine, expire_on_commit=False, autoflush=False)
         self._slow_ms = settings.db_slow_query_ms
+        self._ping_timeout = min(settings.db_pool_timeout_s, 3.0)
         listen(self.engine.sync_engine, "before_cursor_execute", self._before)
         listen(self.engine.sync_engine, "after_cursor_execute", self._after)
 
@@ -107,8 +111,8 @@ class Database:
         return SqlUnitOfWork(self._sessions)
 
     async def ping(self) -> bool:
-        """FR-322: a real query, not a socket check."""
-        async with self.engine.connect() as connection:
+        """FR-322: a real query, not a socket check, and it answers within seconds (NFR-312)."""
+        async with asyncio.timeout(self._ping_timeout), self.engine.connect() as connection:
             await connection.execute(text("SELECT 1"))
         return True
 

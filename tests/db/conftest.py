@@ -1,16 +1,18 @@
 """Fixtures for tests that talk to PostgreSQL directly, as the application role (section 10)."""
 
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Iterator
 from typing import Any
 from uuid import UUID, uuid4
 
 import pytest
+from pydantic import SecretStr
 from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from app.repositories.sql.errors import constraint, sqlstate
 from tests import sql_support
+from tests.conftest import Env, build_env
 from tests.sql_support import Postgres
 
 
@@ -23,7 +25,9 @@ class Db:
     async def run(self, sql: str, **params: Any) -> Any:
         async with self.engine.connect() as connection:
             result = await connection.execute(text(sql), params)
-            return result.all() if result.returns_rows else result.rowcount
+            rows = result.all() if result.returns_rows else result.rowcount
+            await connection.commit()  # a no-op on an autocommit engine, needed on the app's own
+            return rows
 
     async def rejected(self, sql: str, **params: Any) -> tuple[str | None, str | None]:
         """Run a statement that must fail; return (SQLSTATE, constraint name)."""
@@ -121,3 +125,25 @@ async def admin_db(postgres: Postgres, clean: str) -> AsyncIterator[Db]:
         yield db
     finally:
         await db.engine.dispose()
+
+
+@pytest.fixture(scope="module")
+def dedicated() -> Iterator[sql_support.Server]:
+    """A private PostgreSQL that a test may pause or restart without disturbing the others."""
+    server = sql_support.Server()
+    try:
+        sql_support.migrate(server.postgres, sql_support.TEMPLATE)
+        yield server
+    finally:
+        server.stop()
+
+
+@pytest.fixture
+async def sql_env(clean: str, postgres: Postgres) -> AsyncIterator[Env]:
+    """The whole API on PostgreSQL, whatever --backend says, seeded with the `empty` profile."""
+    async for value in build_env(
+        "empty",
+        storage_backend="sql",
+        database_url=SecretStr(postgres.url("app", clean)),
+    ):
+        yield value
