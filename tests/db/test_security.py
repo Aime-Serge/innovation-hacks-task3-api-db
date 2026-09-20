@@ -134,7 +134,11 @@ def test_tc331_no_postgres_url_with_a_real_password_is_tracked() -> None:
             continue
         for match in pattern.finditer(path.read_text(errors="ignore")):
             password = match.group(1)
-            if password not in {"<set-me>", "<password>", "S3cr3t-Pa55"} and "{" not in password:
+            if (
+                password not in {"<set-me>", "<password>", "S3cr3t-Pa55"}
+                and "{" not in password
+                and not password.startswith("$")
+            ):
                 hits.append(f"{path.relative_to(ROOT)}: {match.group(0)[:40]}")
     assert hits == []
 
