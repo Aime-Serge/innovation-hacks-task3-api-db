@@ -7,23 +7,20 @@ from app.core.clock import Clock, IdFactory, SystemClock, UuidFactory
 from app.core.config import Settings
 from app.core.ratelimit import RateLimiter
 from app.core.security import PasswordHasher, TokenCodec
-from app.repositories.base import (
-    ActivityRepository,
-    ProjectRepository,
-    TaskRepository,
-    UserRepository,
-)
 from app.repositories.memory import (
     MemoryActivityRepository,
     MemoryProjectRepository,
     MemoryTaskRepository,
+    MemoryUnitOfWork,
     MemoryUserRepository,
 )
+from app.repositories.sql import Database
 from app.services.activity import ActivityService
 from app.services.auth import AuthService
 from app.services.dashboard import DashboardService
 from app.services.projects import ProjectService
 from app.services.tasks import TaskService
+from app.services.transaction import UowFactory
 from app.services.users import UserService
 
 
@@ -34,24 +31,27 @@ class Container:
     ids: IdFactory
     hasher: PasswordHasher
     limiter: RateLimiter
-    users_repo: UserRepository
-    projects_repo: ProjectRepository
-    tasks_repo: TaskRepository
-    activity_repo: ActivityRepository
+    uow: UowFactory
     auth: AuthService
     users: UserService
     projects: ProjectService
     tasks: TaskService
     activity: ActivityService
     dashboard: DashboardService
+    database: Database | None = None
     readiness_checks: list[Callable[[], Awaitable[bool]]] = field(default_factory=list)
 
     async def is_ready(self) -> bool:
-        """FR-233: every dependency answers. In memory that means the repositories respond."""
+        """FR-322: every dependency answers. With SQL that means a query succeeds."""
         try:
             return all([await check() for check in self.readiness_checks])
         except Exception:
             return False
+
+    async def close(self) -> None:
+        """Release the connection pool at shutdown."""
+        if self.database is not None:
+            await self.database.dispose()
 
 
 def build_container(
@@ -66,17 +66,27 @@ def build_container(
         settings.jwt_audience,
         settings.access_token_ttl_seconds,
     )
-    users_repo = MemoryUserRepository()
-    projects_repo = MemoryProjectRepository()
-    tasks_repo = MemoryTaskRepository()
-    activity_repo = MemoryActivityRepository()
-    activity = ActivityService(activity_repo, clock, ids)
-    projects = ProjectService(projects_repo, tasks_repo, activity, clock, ids)
+    database: Database | None = None
+    uow: UowFactory
+    if settings.storage_backend == "sql":
+        database = Database(settings)
+        uow = database.uow
+        readiness: Callable[[], Awaitable[bool]] = database.ping
+    else:
+        memory = MemoryUnitOfWork(
+            MemoryUserRepository(),
+            MemoryProjectRepository(),
+            MemoryTaskRepository(),
+            MemoryActivityRepository(),
+        )
+        uow = lambda: memory  # noqa: E731 - the same shared repositories for every operation
 
-    async def repositories_respond() -> bool:
-        await users_repo.count_leads()
-        return True
+        async def repositories_respond() -> bool:
+            await memory.users.count_leads()
+            return True
 
+        readiness = repositories_respond
+    activity = ActivityService(uow, clock, ids)
     return Container(
         settings=settings,
         clock=clock,
@@ -85,15 +95,13 @@ def build_container(
         limiter=RateLimiter(
             clock, settings.rate_limit_attempts, settings.rate_limit_window_seconds
         ),
-        users_repo=users_repo,
-        projects_repo=projects_repo,
-        tasks_repo=tasks_repo,
-        activity_repo=activity_repo,
-        auth=AuthService(users_repo, hasher, tokens, clock),
-        users=UserService(users_repo, projects_repo, tasks_repo, hasher, clock, ids),
-        projects=projects,
-        tasks=TaskService(tasks_repo, projects, users_repo, activity, clock, ids),
+        uow=uow,
+        auth=AuthService(uow, hasher, tokens, clock),
+        users=UserService(uow, hasher, clock, ids),
+        projects=ProjectService(uow, activity, clock, ids),
+        tasks=TaskService(uow, activity, clock, ids),
         activity=activity,
-        dashboard=DashboardService(projects_repo, tasks_repo, clock),
-        readiness_checks=[repositories_respond],
+        dashboard=DashboardService(uow, clock),
+        database=database,
+        readiness_checks=[readiness],
     )
