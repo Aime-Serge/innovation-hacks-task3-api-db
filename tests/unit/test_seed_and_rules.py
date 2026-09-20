@@ -82,8 +82,10 @@ async def test_tc314_seed_is_deterministic() -> None:
     await seed(second.state.container, "default", PASSWORD)
     from app.repositories.base import TaskQuery
 
-    one = await first.state.container.tasks_repo.list(TaskQuery(sort="title", page_size=100))
-    two = await second.state.container.tasks_repo.list(TaskQuery(sort="title", page_size=100))
+    async with first.state.container.uow() as uow_one:
+        one = await uow_one.tasks.list(TaskQuery(sort="title", page_size=100))
+    async with second.state.container.uow() as uow_two:
+        two = await uow_two.tasks.list(TaskQuery(sort="title", page_size=100))
     assert [t.title for t in one.items] == [t.title for t in two.items]
 
 
