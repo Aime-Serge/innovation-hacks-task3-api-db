@@ -1,36 +1,68 @@
-# Demo Video Script
+# Demo script: Task 2 API (about 4 minutes)
 
-Target length: **3:00–3:30** (within the guide's 2–5 minute range —
-backend-only, but there's more to show than Task 2: real persistence,
-migrations, and cascading deletes).
+Record the screen with the terminal on the left and the browser on the right. Say the line in
+quotes, then do the action.
 
-Record against a locally running stack: Postgres via `docker compose up -d`,
-migrations applied (`alembic upgrade head`), then `uvicorn app.main:app --reload`.
-Use the Swagger UI at `http://localhost:8000/docs` — every request in
-this script should actually be sent against the real database, not a
-slide.
+## Set up before recording
 
-| Time | Beat | Say | Show |
-| --- | --- | --- | --- |
-| 0:00–0:20 | Cold open | "This is Task 2's API with the in-memory store swapped for real PostgreSQL — same routes, same request/response contracts, just backed by a real database now. FastAPI, SQLAlchemy 2.0, Alembic migrations." | Terminal: `docker compose up -d`, then `alembic upgrade head` showing the migration apply cleanly. Then Swagger UI overview at `/docs`. |
-| 0:20–0:50 | Create the full chain | "User, then a project owned by that user, then a task on that project — the exact same three-entity chain as Task 2." | `POST /users` (Try it out, Execute, show the real 201). `POST /projects` with that user's id. `POST /tasks` with that project's id. |
-| 0:50–1:20 | Prove it's a real database, not memory | "This isn't just holding state in a Python dict anymore — it's actually in Postgres." | Terminal split: `psql` (or `docker exec ... psql`) a quick `SELECT * FROM users;` showing the row that was just created via the API — the same row, same UUID. |
-| 1:20–1:50 | Relationships enforced at two layers | "A project needs a real owner, same as Task 2 — but now there's also a foreign key at the schema level, so even a raw SQL insert bypassing the API would get rejected." | `POST /projects` with a random UUID as `owner_id` (404, API-layer check). Mention (or show briefly in `app/db/models.py`) that `owner_id` is also a real FK with `ON DELETE CASCADE`. |
-| 1:50–2:30 | Cascade delete, the headline feature | "Delete a user, and everything they own goes with them — their projects, and those projects' tasks — enforced by the database itself, not application code looping through and deleting things one by one." | `DELETE /users/{id}` on the user from earlier (204). Then `GET` the project and the task by their ids — both 404 now, even though neither was deleted directly. |
-| 2:30–2:50 | Full CRUD on every entity | "Projects can now be renamed and deleted too, not just created and read — same cascade rule applies: delete a project, its tasks go with it." | `POST /projects` + `POST /tasks` again, then `PATCH /projects/{id}` (rename), then `DELETE /projects/{id}`, then show the task is gone. |
-| 2:50–3:15 | Close | "60 tests, all passing against a real Postgres instance — including tests that bypass the API entirely and hit the database directly, proving the schema itself enforces these rules. Full source, ER diagram, and API docs in the repo linked below." | Quick cut to a passing `pytest -v` run, then the README's ER diagram, then back to the repo's GitHub page. |
+```bash
+uv sync --frozen
+export SECRET_KEY=$(python3 -c 'import secrets; print(secrets.token_urlsafe(48))')
+SEED_PASSWORD='Demo-Password-123' SEED_PROFILE=default uv run uvicorn app.main:create_app --factory
+```
 
-## Notes for whoever records this
+Open http://127.0.0.1:8000/docs in the browser. The demo password lives only in your shell.
 
-- The cascade-delete beat (1:50–2:30) is the single most important
-  thing to get right on camera — it's the feature that most clearly
-  distinguishes this task from Task 2, so don't rush it.
-- No auth on this task either (still deliberate, still Task 4's job) —
-  no need to apologize for it on screen.
-- If a live `psql` terminal split feels like too much setup, it's fine
-  to skip beat 0:50–1:20 and instead just say "this is now backed by
-  real Postgres" once at the top — the cascade-delete beat later
-  already proves persistence indirectly.
-- Have the random-UUID and the real ids typed/copied into separate
-  Swagger tabs before recording, so the video doesn't sit on typing or
-  copy-pasting UUIDs mid-take.
+## 1. The contract (40 s)
+
+"This is the Task 2 API, built to an engineering standards pack. The interactive docs are generated
+from the code, and a test fails the build if `docs/openapi.json` drifts from them."
+
+- Scroll the operation list: Authentication, Users, Projects, Tasks, Dashboard, Health.
+- Open **POST /api/v1/tasks**. Point at the request example, the response example and the list of
+  documented errors (400, 401, 403, 409, 413, 415, 422, 500).
+
+## 2. Authentication (40 s)
+
+"No default credentials. Log in as the seeded lead."
+
+- **POST /api/v1/auth/login** with `amara.diallo@example.com` and the demo password. Copy the token,
+  click **Authorize**, paste it.
+- Try a wrong password, then an unknown email. "Same 401, same message, so it cannot be used to
+  find out which accounts exist."
+- **GET /api/v1/auth/me** shows the lead.
+
+## 3. A task through its workflow (75 s)
+
+"Business rules are enforced on the server, not the client."
+
+- **POST /api/v1/projects**, then **POST /api/v1/tasks**. Point at `201` and the `Location` header.
+- **PATCH /api/v1/tasks/{taskId}/status** with `done` straight from `todo`. Show the `409
+  INVALID_STATUS_TRANSITION` and the `allowedStatuses` detail.
+- Move it `in_progress`, `in_review`, `done`. Show `completedAt` appear. Move it back to
+  `in_progress` and show `completedAt` clear.
+- **GET /api/v1/projects/{projectId}**: the progress numbers changed.
+
+## 4. Permissions and validation (45 s)
+
+- Register a new account, log in as it, and try **DELETE /api/v1/users/{userId}**. `403 FORBIDDEN`.
+- **POST /api/v1/projects** with `{"name": "  ", "ownerId": "x"}`. `422` with a field list, and
+  "clients can never set the owner".
+- **GET /api/v1/tasks?pageSize=500**. `422`, and the error shows `requestId`.
+
+## 5. The gate (45 s)
+
+"Everything I just showed is a test."
+
+In the terminal run `make test` and show the coverage line and the endpoint-coverage line, then
+`make layers` ("the architecture rules are enforced by a tool"). Mention Schemathesis, Newman, Locust.
+
+## Say honestly at the end (15 s)
+
+"State is in memory and resets on restart, and the rate limiter is per process. Task 3 adds the
+database."
+
+## Before you upload
+
+- [ ] The recording shows no real password or token (blur the Authorize dialog if in doubt)
+- [ ] The README has the demo link, and `docs/openapi.json` is committed
