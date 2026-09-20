@@ -9,7 +9,16 @@ from datetime import UTC, datetime
 LOGGER_NAME = "devdash.api"
 request_id_var: ContextVar[str] = ContextVar("request_id", default="-")
 
-_EXTRA_FIELDS = ("requestId", "method", "path", "status", "durationMs", "userId", "errorType")
+_EXTRA_FIELDS = (
+    "requestId",
+    "method",
+    "path",
+    "status",
+    "durationMs",
+    "userId",
+    "errorType",
+    "fingerprint",
+)
 
 
 class JsonFormatter(logging.Formatter):

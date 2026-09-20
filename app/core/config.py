@@ -1,8 +1,9 @@
 """Validated settings: a missing or invalid variable stops the app and names it (FR-227)."""
 
 from typing import Annotated, Literal
+from urllib.parse import parse_qs, urlsplit
 
-from pydantic import Field, SecretStr, ValidationError, field_validator
+from pydantic import Field, SecretStr, ValidationError, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
@@ -28,7 +29,20 @@ class Settings(BaseSettings):
     argon2_time_cost: int = Field(default=3, ge=1)
     argon2_memory_kib: int = Field(default=65_536, ge=8)
     seed_password: SecretStr | None = None
-    seed_profile: Literal["none", "default", "empty", "large"] = "none"
+    seed_profile: Literal["none", "default", "empty", "large", "xl"] = "none"
+
+    # Storage (Task 3, ADR-312). Memory stays the default outside production so unit tests and a
+    # first local run need no database; production refuses it (FR-318).
+    storage_backend: Literal["sql", "memory"] = "memory"
+    database_url: SecretStr | None = None
+    migration_database_url: SecretStr | None = None
+    db_pool_size: int = Field(default=10, ge=1, le=100)
+    db_max_overflow: int = Field(default=10, ge=0, le=100)
+    db_pool_timeout_s: float = Field(default=5, gt=0)
+    db_statement_timeout_ms: int = Field(default=5000, ge=100)
+    db_lock_timeout_ms: int = Field(default=2000, ge=100)
+    db_idle_tx_timeout_ms: int = Field(default=10000, ge=100)
+    db_slow_query_ms: int = Field(default=200, ge=1)
 
     @field_validator("secret_key")
     @classmethod
@@ -51,6 +65,27 @@ class Settings(BaseSettings):
             raise ValueError("a wildcard origin is not allowed; list explicit origins")
         return value
 
+    @model_validator(mode="after")
+    def _storage_rules(self) -> "Settings":
+        """FR-316, FR-318: name the variable; refuse memory and non-TLS links in production."""
+        if self.is_production and self.storage_backend != "sql":
+            raise ValueError("STORAGE_BACKEND: must be sql when APP_ENV=production")
+        if self.storage_backend == "sql" and self.database_url is None:
+            raise ValueError("DATABASE_URL: required when STORAGE_BACKEND=sql")
+        for name, value in (
+            ("DATABASE_URL", self.database_url),
+            ("MIGRATION_DATABASE_URL", self.migration_database_url),
+        ):
+            if value is not None and not value.get_secret_value().startswith(
+                "postgresql+asyncpg://"
+            ):
+                raise ValueError(f"{name}: must start with postgresql+asyncpg://")
+        if self.is_production and self.database_url is not None:
+            query = parse_qs(urlsplit(self.database_url.get_secret_value()).query)
+            if query.get("ssl", [""])[0] not in ("require", "verify-ca", "verify-full"):
+                raise ValueError("DATABASE_URL: TLS is required in production (add ?ssl=require)")
+        return self
+
     @property
     def is_production(self) -> bool:
         return self.app_env == "production"
@@ -68,6 +103,8 @@ def load_settings() -> Settings:
     except ValidationError as error:
         problems = "; ".join(
             f"{'.'.join(str(part) for part in item['loc']).upper()}: {item['msg']}"
+            if item["loc"]
+            else str(item["msg"]).removeprefix("Value error, ")
             for item in error.errors()
         )
         raise SystemExit(f"Invalid configuration. {problems}") from None
