@@ -4,7 +4,17 @@ import asyncio
 from collections.abc import Callable, Sequence
 from typing import Any, cast
 
-from sqlalchemy import CursorResult, Executable, Select, SQLColumnExpression, collate, func, select
+from sqlalchemy import (
+    CursorResult,
+    Executable,
+    Insert,
+    Select,
+    SQLColumnExpression,
+    collate,
+    func,
+    select,
+    text,
+)
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -13,7 +23,6 @@ from app.domain.queries import Page
 from app.repositories.sql.errors import Operation, translate
 
 TOTAL = "_total"
-BATCH = 5000
 
 
 def like_pattern(term: str | None) -> str | None:
@@ -50,17 +59,37 @@ async def run(
 
 
 async def run_many(
-    session: AsyncSession, statement: Executable, rows: Sequence[dict[str, Any]]
+    session: AsyncSession, statement: Insert, rows: Sequence[dict[str, Any]]
 ) -> None:
-    """Bulk insert in batches, for seeding (FR-321)."""
-    for start in range(0, len(rows), BATCH):
-        try:
-            await session.execute(statement, list(rows[start : start + BATCH]))
-        except DBAPIError as error:
-            mapped = translate(error, "insert")
-            if mapped is None:
-                raise
-            raise mapped from None
+    """Bulk load with COPY, for seeding (FR-321).
+
+    A row per round trip took over a minute for the xl profile, and compiling a statement with tens
+    of thousands of bind parameters is nearly as slow. COPY streams the rows and takes seconds.
+    """
+    if not rows:
+        return
+    table = statement.table
+    columns = list(rows[0])
+    records = [tuple(row[column] for column in columns) for row in rows]
+    try:
+        connection = await session.connection()
+        # A bulk load is allowed longer than a request is; the setting lasts one transaction.
+        await connection.execute(text("SET LOCAL statement_timeout = '300s'"))
+        raw = await connection.get_raw_connection()
+        driver = raw.driver_connection
+        assert driver is not None  # noqa: S101 - the pool always holds a live driver connection
+        await driver.copy_records_to_table(
+            table.name,
+            records=records,
+            columns=columns,
+            schema_name=table.schema or "public",
+            timeout=300,  # the driver's own limit, kept longer than a request's
+        )
+    except DBAPIError as error:
+        mapped = translate(error, "insert")
+        if mapped is None:
+            raise
+        raise mapped from None
 
 
 async def page_of[T](
