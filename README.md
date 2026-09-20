@@ -69,6 +69,16 @@ setting is missing from it.
 | `ARGON2_MEMORY_KIB` | `65536` | argon2id memory cost. Lower only in tests. |
 | `SEED_PROFILE` | `none` | `none`, `default`, `empty` or `large`. Refused when `APP_ENV=production`. |
 | `SEED_PASSWORD` | empty | Password for seeded accounts; empty prints a random one. |
+| `STORAGE_BACKEND` | `memory` | `sql` (PostgreSQL) or `memory`. Production refuses `memory`. |
+| `DATABASE_URL` | empty | Application role connection, `postgresql+asyncpg://ih_app:<set-me>@host:5432/db`. Production needs `?ssl=require`. |
+| `MIGRATION_DATABASE_URL` | empty | Migration role connection, used only by `make db-migrate`. |
+| `DB_POOL_SIZE` | `10` | Connections kept in the pool. |
+| `DB_MAX_OVERFLOW` | `10` | Extra connections allowed under load. |
+| `DB_POOL_TIMEOUT_S` | `5` | Seconds to wait for a connection before answering 503. |
+| `DB_STATEMENT_TIMEOUT_MS` | `5000` | Longest a query may run. |
+| `DB_LOCK_TIMEOUT_MS` | `2000` | Longest a query may wait for a lock. |
+| `DB_IDLE_TX_TIMEOUT_MS` | `10000` | Idle-in-transaction limit. |
+| `DB_SLOW_QUERY_MS` | `200` | Queries slower than this are logged (fingerprint and duration only). |
 
 ## Try it: authentication walkthrough
 

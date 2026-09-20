@@ -10,6 +10,9 @@ dependencies = [
   "pydantic-settings",
   "pyjwt",
   "argon2-cffi",
+  "sqlalchemy[asyncio]>=2.0",
+  "asyncpg>=0.31.0",
+  "alembic>=1.20.0",
 ]
 
 [dependency-groups]
@@ -27,6 +30,9 @@ dev = [
   "pip-audit",
   "pre-commit",
   "openapi-spec-validator>=0.9.0",
+  "testcontainers[postgres]>=4.15.0",
+  "pytest-xdist>=3.8.0",
+  "psycopg2-binary>=2.9.13",
 ]
 
 [tool.uv]
@@ -107,3 +113,10 @@ type = "forbidden"
 source_modules = ["app.api.v1"]
 forbidden_modules = ["app.repositories"]
 allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+name = "Only repositories.sql imports SQLAlchemy, asyncpg or Alembic"
+type = "forbidden"
+source_modules = ["app"]
+forbidden_modules = ["sqlalchemy", "asyncpg", "alembic"]
+ignore_imports = ["app.repositories.sql.** -> sqlalchemy"]
