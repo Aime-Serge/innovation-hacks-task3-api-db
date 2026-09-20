@@ -70,7 +70,15 @@ class MemoryTaskRepository:
         return progress(len(own), done)
 
     async def progress_for_many(self, project_ids: Sequence[UUID]) -> dict[UUID, Progress]:
-        return {project_id: await self.progress_for(project_id) for project_id in project_ids}
+        """One pass over the tasks for every project asked about, not one pass per project."""
+        wanted = set(project_ids)
+        totals: dict[UUID, int] = dict.fromkeys(wanted, 0)
+        dones: dict[UUID, int] = dict.fromkeys(wanted, 0)
+        for task in self._items.values():
+            if task.project_id in wanted:
+                totals[task.project_id] += 1
+                dones[task.project_id] += task.status is TaskStatus.DONE
+        return {pid: progress(totals[pid], dones[pid]) for pid in project_ids}
 
     async def totals(self, today: date) -> TaskTotals:
         tasks = list(self._items.values())
