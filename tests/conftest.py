@@ -107,7 +107,7 @@ def make_settings(**overrides: Any) -> Settings:
         # that names no real server is enough to build them.
         values["storage_backend"] = "sql"
         values["database_url"] = SecretStr(
-            "postgresql+asyncpg://ih_app:x@127.0.0.1:1/none?ssl=require"
+            "postgresql+asyncpg://ih_app:<set-me>@127.0.0.1:1/none?ssl=require"
         )
     return Settings(_env_file=None, **values)
 

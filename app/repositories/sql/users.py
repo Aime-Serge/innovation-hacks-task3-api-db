@@ -33,13 +33,14 @@ class SqlUserRepository:
         row = (await common.run(self._session, statement, "read")).first()
         return None if row is None else mappers.user_from(row)
 
-    async def get_by_email(self, email: str) -> User | None:
-        """The login lookup: the only query that selects `password_hash`."""
-        statement = select(*PUBLIC, UserRow.password_hash).where(
-            UserRow.email == email.strip().lower()
-        )
+    async def get_by_email(self, email: str, *, with_hash: bool = False) -> User | None:
+        """`with_hash=True` is the login lookup, the only query that selects `password_hash`."""
+        columns = (*PUBLIC, UserRow.password_hash) if with_hash else PUBLIC
+        statement = select(*columns).where(UserRow.email == email.strip().lower())
         row = (await common.run(self._session, statement, "read")).first()
-        return None if row is None else mappers.user_from(row, row.password_hash)
+        if row is None:
+            return None
+        return mappers.user_from(row, row.password_hash if with_hash else mappers.NO_HASH)
 
     async def list(self, query: UserQuery) -> Page[User]:
         conditions: list[ColumnElement[bool]] = []

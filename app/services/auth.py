@@ -18,7 +18,9 @@ class AuthService:
     async def login(self, email: str, password: str) -> IssuedToken:
         """Unknown email and wrong password are indistinguishable (FR-203, TH-203)."""
         # The only lookup that loads the password hash (NFR-318).
-        user = await transaction.read(self._uow, lambda uow: uow.users.get_by_email(email))
+        user = await transaction.read(
+            self._uow, lambda uow: uow.users.get_by_email(email, with_hash=True)
+        )
         if user is None:
             await self._hasher.verify_dummy(password)
             raise InvalidCredentials("The email or password is incorrect.")

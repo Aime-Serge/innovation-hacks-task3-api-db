@@ -16,7 +16,7 @@ class MemoryUserRepository:
     async def get(self, user_id: UUID, *, for_update: bool = False) -> User | None:
         return self._items.get(user_id)
 
-    async def get_by_email(self, email: str) -> User | None:
+    async def get_by_email(self, email: str, *, with_hash: bool = False) -> User | None:
         wanted = email.strip().lower()
         return next((user for user in self._items.values() if user.email == wanted), None)
 

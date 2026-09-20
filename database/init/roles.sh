@@ -19,10 +19,9 @@ SELECT format('REVOKE ALL ON DATABASE %I FROM PUBLIC', :'db') \gexec
 SELECT format('GRANT CONNECT ON DATABASE %I TO ih_app, ih_readonly', :'db') \gexec
 
 -- Rows only, for the API. Objects the migrator creates later are covered automatically.
+-- ih_readonly gets no default: its grants are column by column, in a migration, so the hash is out.
 ALTER DEFAULT PRIVILEGES FOR ROLE ih_migrator IN SCHEMA public
   GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO ih_app;
-ALTER DEFAULT PRIVILEGES FOR ROLE ih_migrator IN SCHEMA public
-  GRANT SELECT ON TABLES TO ih_readonly;
 REVOKE CREATE ON SCHEMA public FROM PUBLIC;
 GRANT USAGE ON SCHEMA public TO ih_app, ih_readonly;
 SQL
