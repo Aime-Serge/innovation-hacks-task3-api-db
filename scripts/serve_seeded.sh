@@ -3,7 +3,7 @@
 # Usage: serve_seeded.sh <port> <profile> <pidfile>
 set -euo pipefail
 PORT="${1:?port}"; PROFILE="${2:-default}"; PIDFILE="${3:?pidfile}"
-export LOG_LEVEL="${LOG_LEVEL:-warning}" APP_ENV=test SEED_PROFILE="$PROFILE" SEED_PASSWORD="${SEED_PASSWORD:-Seeded-Password-123}"
+export STORAGE_BACKEND=memory LOG_LEVEL="${LOG_LEVEL:-warning}" APP_ENV=test SEED_PROFILE="$PROFILE" SEED_PASSWORD="${SEED_PASSWORD:-Seeded-Password-123}"
 export SECRET_KEY="${SECRET_KEY:-$(python3 -c 'import secrets; print(secrets.token_urlsafe(48))')}"
 export RATE_LIMIT_ATTEMPTS="${RATE_LIMIT_ATTEMPTS:-100000}"
 uv run --frozen uvicorn app.main:create_app --factory --port "$PORT" --log-level warning &
