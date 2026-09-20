@@ -151,7 +151,9 @@ async def test_tc352_two_leads_cannot_demote_each_other_to_none(sql_env: Env) ->
         first, second = await asyncio.gather(demote_b, demote_a)
         leads = (await db.run("SELECT count(*) AS n FROM users WHERE role = 'lead'"))[0].n
         assert leads >= 1, f"run {run}: no lead is left"
-        assert sorted((first.status_code, second.status_code)) == [200, 409], run
+        # One demotion wins. The other is refused by the last-lead rule (409), or by the role check
+        # (403) when the winner had already demoted the caller before its request was read.
+        assert sorted((first.status_code, second.status_code)) in ([200, 403], [200, 409]), run
 
 
 @pytest.mark.sql
