@@ -1,14 +1,17 @@
-# DevDash API: users, projects and tasks
+# DevDash API: users, projects and tasks, on PostgreSQL
 
-Task 2 of the Innovation Hacks Full Stack Development Internship: the backend for the Task 1
-dashboard, built with **FastAPI** to the _Users, Projects & Tasks API Engineering Standards Pack
+Task 3 of the Innovation Hacks Full Stack Development Internship: the Task 2 API with its in-memory
+storage replaced by **PostgreSQL 16**, built to the _Persistent Data Layer Engineering Standards
+Pack (Task 3)_. The API contract is unchanged, so the Task 1 dashboard and every Task 2 test keep
+working. The backend is **FastAPI**, built to the _Users, Projects & Tasks API Engineering Standards Pack
 (Task 2)_. Twenty-three documented operations under `/api/v1`, one error envelope, bearer-token
 authentication, business rules enforced on the server, and a test gate that fails the build when
 the code, the tests or the OpenAPI document drift apart.
 
 ![Python 3.12](https://img.shields.io/badge/python-3.12-3776ab) ![mypy strict](https://img.shields.io/badge/mypy-strict-2a6db2) ![FastAPI](https://img.shields.io/badge/FastAPI-Pydantic_v2-009688)
 
-- **Live API:** https://ih-task2-api.onrender.com ([docs](https://ih-task2-api.onrender.com/docs)). The free tier sleeps, so the first request can take about a minute. It is seeded demo data that resets on restart (see [Deploying](#deploying))
+- **Live API:** _add the Render URL after deploying_ (see [Deploying](#deploying))
+- **Previous live API (Task 2):** https://ih-task2-api.onrender.com ([docs](https://ih-task2-api.onrender.com/docs)). The free tier sleeps, so the first request can take about a minute. It is seeded demo data that resets on restart (see [Deploying](#deploying))
 - **Interactive docs:** `/docs` (Swagger UI), on in development, off in production
 - **Demo video:** _add the link after recording, see [DEMO_SCRIPT.md](DEMO_SCRIPT.md)_
 - **Standards:** [docs/standards/](docs/standards/) · **Decisions:** [docs/adr/](docs/adr/) ·
@@ -185,12 +188,73 @@ traces and internals never appear in a response.
 | 500 | `INTERNAL_ERROR` | Unexpected; generic message, details are in the server log |
 | 503 | `SERVICE_UNAVAILABLE` | `/readyz` when a dependency is down |
 
+## Database
+
+Four tables (`users`, `projects`, `tasks`, `activity`) hold all data. The database enforces what it
+can: lengths, enums, a unique lower-case email, an `https` avatar, `completed_at` set exactly when a
+task is `done`, and six foreign keys with deliberate delete rules. Diagram and column-by-column
+reference: [database/docs/erd.mmd](database/docs/erd.mmd) and
+[database/docs/data-dictionary.md](database/docs/data-dictionary.md), both generated from the live
+schema and checked for drift.
+
+### Local setup in three commands
+
+```bash
+make env          # writes .env with freshly generated passwords (git-ignored); or copy .env.example and set them
+make db-up        # starts PostgreSQL 16 in Docker and creates the three roles
+make db-migrate   # applies the migrations; then: make run
+```
+
+Load demo data with `python -m app.seed --profile default --reset --yes` (profiles `default`,
+`empty`, `large` and `xl`; `--reset` clears every table first and both flags are refused in
+production).
+
+### Roles
+
+| Role | May do | Used by |
+| --- | --- | --- |
+| `ih_admin` | Everything; provisioning only | The operator |
+| `ih_migrator` | Owns the schema; creates and alters objects | `make db-migrate` in CI and deploy |
+| `ih_app` | Select, insert, update, delete rows. No DDL | The running API (`DATABASE_URL`) |
+| `ih_readonly` | Select on every table except `users.password_hash` | Reporting |
+
+Secrets come only from the environment. Compose stops if a password is unset, the port is bound to
+`127.0.0.1`, settings and logs never print a connection string, and production refuses the memory
+backend and a connection string without `?ssl=require`. `MIGRATION_DATABASE_URL` belongs to the
+deploy step, not to the running API.
+
+### Migrations
+
+Alembic, written by hand from the models and reviewed (BR-310). Every revision has a downgrade and
+the gate runs up, down and up again on an empty and on a seeded database, then `alembic check`.
+The API never migrates itself in production.
+
+```bash
+make db-migrate   # alembic upgrade head, as the migration role
+make db-check     # alembic check, naming rules and column types
+make db-docs      # regenerate the ERD and the data dictionary after a schema change
+```
+
+### Backup and restore
+
+`make db-backup` writes a compressed dump outside the repository (it holds password hashes, so keep
+it private and encrypted). `make db-restore-test` dumps the database, restores it into a scratch
+database, and compares row counts and primary-key checksums with the source. Documented objectives:
+recovery point 24 hours, recovery time 1 hour, using daily dumps.
+
+### Tests against PostgreSQL
+
+The tests start a disposable PostgreSQL container, build its schema by running the real migrations,
+and clone it once per worker. Run the whole Task 2 suite on it with `pytest --backend sql`; the
+default `--backend memory` is for quick loops. Concurrency, outage and restart tests are included.
+
 ## Architecture
 
 ```
 app/api        routers: parse, call a service, shape the response. No business rules.
 app/services   business rules and authorization. Raise AppError subclasses; never import FastAPI.
-app/repositories  async Protocols + in-memory implementations behind them.
+app/repositories  async Protocols, a unit of work, an in-memory implementation (tests only)
+                  and the PostgreSQL one in repositories/sql (the only place SQLAlchemy is imported).
 app/domain     entities, enums, pure rules, query objects.
 app/core       settings, errors, logging, middleware, security, clock, rate limiter.
 ```
@@ -218,6 +282,7 @@ make gate        # everything below, stops at the first failure
 | `make postman` | the Postman collection under Newman |
 | `make load` | Locust on 500 tasks, p95 thresholds |
 | `make docker` | the image builds |
+| `make db-gate` | the data-layer gate: migrations, integrity, concurrency, security, performance, docs, restore |
 
 After changing an endpoint, run `make export-spec` and commit `docs/openapi.json`; CI fails if it is
 stale. `make secrets` runs gitleaks if it is installed (CI always runs it).
@@ -225,16 +290,25 @@ stale. `make secrets` runs gitleaks if it is installed (CI always runs it).
 ## Deploying
 
 `render.yaml` builds the Dockerfile as one worker with a `/healthz` check. In the Render dashboard
-set `SEED_PASSWORD` and `CORS_ORIGINS`; `SECRET_KEY` is generated. The demo deployment is seeded
-and is not `APP_ENV=production`: see [ADR-221](docs/adr/ADR-221-render-demo-seeding.md).
+set `DATABASE_URL` (the application role, ending `?ssl=require`), `SEED_PASSWORD` and
+`CORS_ORIGINS`; `SECRET_KEY` is generated. Apply the schema once from your machine, as the migration
+role, before the first deploy:
+
+```bash
+MIGRATION_DATABASE_URL='postgresql+asyncpg://ih_migrator:<set-me>@<host>:5432/<db>?ssl=require' alembic upgrade head
+```
+
+The demo deployment is seeded on an empty database and is not `APP_ENV=production`; see
+[ADR-221](docs/adr/ADR-221-render-demo-seeding.md). Data now persists across restarts and deploys.
 
 ## Known limitations
 
-- **State is in memory.** Everything resets on restart, and the service must run one worker (a
-  second worker would hold a second, different copy of the data). Task 3 adds the database.
-- **The rate limiter is per process** ([ADR-216](docs/adr/ADR-216-in-process-rate-limiter.md)).
-- **Tokens cannot be revoked** before they expire (15 minutes). There is no refresh token and no
-  logout endpoint; the client discards its token.
-- **Task 1 features with no endpoint:** password reset, password and email change, avatar upload.
-  The pack does not define them ([compatibility notes](docs/compatibility-task1.md)).
+- **The rate limiter is per process** ([ADR-216](docs/adr/ADR-216-in-process-rate-limiter.md)), so
+  the service runs one worker. A shared store and more workers are on the roadmap.
+- **Deletes are hard.** There is no soft delete and `activity` is a feed, not an audit log.
+- **Roles limit what the API can do, not what a compromised API may read.** Row-level security is a
+  roadmap item.
+- **Tokens cannot be revoked** before they expire (15 minutes). There is no refresh token.
+- **Task 1 features with no endpoint:** password reset, password and email change, avatar upload
+  ([compatibility notes](docs/compatibility-task1.md)).
 - **Registration always creates a developer.** The first lead has to be seeded.

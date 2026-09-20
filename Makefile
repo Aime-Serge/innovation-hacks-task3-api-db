@@ -8,7 +8,7 @@ COMPOSE  := docker compose -f database/docker-compose.yml --env-file .env
 # Run a command with .env loaded (the file holds secrets and is never committed).
 WITHENV  := set -a && . ./.env && set +a &&
 
-.PHONY: env fast db-up db-down db-migrate db-check db-roundtrip test-sql test-integrity \
+.PHONY: postman-sql env fast db-up db-down db-migrate db-check db-roundtrip test-sql test-integrity \
         test-concurrency db-security db-perf db-docs db-docs-check db-backup db-restore-test \
         db-gate run install dev lint format typecheck layers test coverage spec-check export-spec spec-diff \
         contract security secrets postman load docker gate
@@ -109,6 +109,9 @@ db-perf:
 	$(RUN) pytest -q --no-cov tests/db/test_performance.py
 	$(WITHENV) STORAGE_BACKEND=sql ./scripts/run_load_sql.sh $(PORT)
 
+postman-sql:
+	$(WITHENV) ./scripts/run_newman_sql.sh $(PORT)
+
 db-docs:
 	$(WITHENV) $(RUN) python scripts/generate_db_docs.py
 
@@ -124,7 +127,7 @@ db-restore-test:
 run:
 	$(WITHENV) $(RUN) uvicorn app.main:create_app --factory --port 8000
 
-db-gate: db-up db-migrate db-check db-roundtrip test-sql test-integrity test-concurrency db-security db-perf db-docs-check db-restore-test
+db-gate: db-up db-migrate db-check db-roundtrip test-sql postman-sql test-integrity test-concurrency db-security db-perf db-docs-check db-restore-test
 
 gate: lint typecheck layers test spec-check spec-diff contract security postman load db-gate
 	@echo "GATE PASSED"
