@@ -24,12 +24,15 @@ DOCS_LINKS = (
     '<a class="btn primary" href="/docs">Open the interactive docs</a>'
     '<a class="btn" href="/openapi.json">OpenAPI document</a>'
 )
+NAV_DOCS = '<li><a href="/docs">Docs</a></li>'
 DOCS_OFF = '<span class="tag">Interactive docs are off in this environment</span>'
 
 
 def render(docs_enabled: bool) -> str:
-    return PAGE.replace("__STYLE__", STYLE).replace(
-        "__DOCS__", DOCS_LINKS if docs_enabled else DOCS_OFF
+    return (
+        PAGE.replace("__STYLE__", STYLE)
+        .replace("__NAV__", NAV_DOCS if docs_enabled else "")
+        .replace("__DOCS__", DOCS_LINKS if docs_enabled else DOCS_OFF)
     )
 
 
