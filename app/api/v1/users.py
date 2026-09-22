@@ -33,11 +33,14 @@ async def register(
 ) -> UserOut:
     enforce_rate_limit(request, container, "register")
     user = await container.users.register(
-        payload.name,
+        payload.name if payload.name is not None else f"{payload.given_name} {payload.family_name}",
         payload.email,
         payload.password,
         payload.avatar_url,
         payload.preferences.theme if payload.preferences else Theme.SYSTEM,
+        given_name=payload.given_name,
+        family_name=payload.family_name,
+        profile=payload.profile.model_dump(by_alias=True) if payload.profile is not None else None,
     )
     response.headers["Location"] = f"/api/v1/users/{user.id}"
     return UserOut.of(user)

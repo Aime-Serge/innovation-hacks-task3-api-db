@@ -1,4 +1,5 @@
 from dataclasses import dataclass, replace
+from typing import Any
 from uuid import UUID
 
 from app.core.clock import Clock, IdFactory
@@ -52,6 +53,10 @@ class UserService:
         avatar_url: str | None = None,
         theme: Theme = Theme.SYSTEM,
         role: Role = Role.DEVELOPER,
+        *,
+        given_name: str | None = None,
+        family_name: str | None = None,
+        profile: dict[str, Any] | None = None,
     ) -> User:
         """BR-201, BR-209 and FR-202. `role` is only ever set by the seed command."""
         normalised = email.strip().lower()
@@ -72,6 +77,9 @@ class UserService:
             theme=theme,
             created_at=now,
             updated_at=now,
+            given_name=given_name,
+            family_name=family_name,
+            profile=profile,
         )
 
         async def work(uow: UnitOfWork) -> User:

@@ -50,6 +50,27 @@ HttpsUrl = Annotated[
     str, StringConstraints(max_length=2048, pattern=_HTTPS_PATTERN), AfterValidator(_https_only)
 ]
 
+# Matches Task 4: an optional profile image can be an HTTPS link or a small selected PNG, JPEG or
+# WebP file sent as a base64 data URL.  The bound includes base64 expansion of a 500 KB file.
+AVATAR_DATA_MAX = 700_000
+_AVATAR_DATA_PATTERN = r"^data:image/(png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$"
+_AVATAR_PATTERN = rf"(?:{_HTTPS_PATTERN})|(?:{_AVATAR_DATA_PATTERN})"
+
+
+def _avatar_source(value: str) -> str:
+    if value.startswith("data:"):
+        if len(value) > AVATAR_DATA_MAX:
+            raise ValueError("The image is too large; use one of 500 KB or less.")
+        return value
+    return _https_only(value)
+
+
+AvatarUrl = Annotated[
+    str,
+    StringConstraints(max_length=AVATAR_DATA_MAX, pattern=_AVATAR_PATTERN),
+    AfterValidator(_avatar_source),
+]
+
 # Whitespace is spelled out as a character class: `\\s` means different things to the Rust regex
 # engine and to the ECMA engines that read the schema; a fuzzer found addresses they disagree on.
 # A pragmatic address check, stated identically in the schema and the validator (ADR-222): the

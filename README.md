@@ -102,6 +102,14 @@ curl -s $BASE/api/v1/auth/me -H "Authorization: Bearer $TOKEN"
 Tokens last 15 minutes. An unknown email and a wrong password give the same `401
 INVALID_CREDENTIALS`. Login and registration are rate limited (429 with `Retry-After`).
 
+### Full-registration compatibility
+
+Task 3 keeps its original `name` registration contract while also accepting Task 4's complete
+registration shape: `givenName`, `familyName`, professional `profile` data, consent and an
+optional HTTPS or selected PNG/JPEG/WebP `avatarUrl`. Migration `0005` persists those extra
+details alongside the account and allows the bounded inline image representation. The final Task 4
+platform later normalises the same professional fields into its dedicated profile tables.
+
 ## Endpoints
 
 Every route except registration, login and the health checks needs `Authorization: Bearer <token>`.
@@ -191,7 +199,8 @@ traces and internals never appear in a response.
 ## Database
 
 Four tables (`users`, `projects`, `tasks`, `activity`) hold all data. The database enforces what it
-can: lengths, enums, a unique lower-case email, an `https` avatar, `completed_at` set exactly when a
+can: lengths, enums, a unique lower-case email, an `https` or bounded inline-image avatar,
+`completed_at` set exactly when a
 task is `done`, and six foreign keys with deliberate delete rules. Diagram and column-by-column
 reference: [database/docs/erd.mmd](database/docs/erd.mmd) and
 [database/docs/data-dictionary.md](database/docs/data-dictionary.md), both generated from the live

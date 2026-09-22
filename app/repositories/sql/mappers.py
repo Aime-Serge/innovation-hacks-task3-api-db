@@ -22,6 +22,9 @@ def user_from(row: Row[Any], password_hash: str = NO_HASH) -> User:
         theme=Theme(row.theme),
         created_at=row.created_at,
         updated_at=row.updated_at,
+        given_name=row.given_name,
+        family_name=row.family_name,
+        profile=row.profile,
     )
 
 
@@ -33,6 +36,9 @@ def user_values(user: User) -> dict[str, Any]:
         "password_hash": user.password_hash,
         "role": user.role.value,
         "avatar_url": user.avatar_url,
+        "given_name": user.given_name,
+        "family_name": user.family_name,
+        "profile": user.profile,
         "theme": user.theme.value,
         "created_at": user.created_at,
         "updated_at": user.updated_at,
