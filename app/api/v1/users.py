@@ -4,7 +4,7 @@ from fastapi import APIRouter, Query, Request, Response
 
 from app.api.deps import ContainerDep, CurrentActor, CurrentUser, UserId, enforce_rate_limit
 from app.api.docs import errors
-from app.domain.enums import Theme
+from app.domain.enums import Role, Theme
 from app.domain.queries import UserQuery
 from app.domain.unset import UNSET
 from app.schemas.common import PageOut
@@ -21,8 +21,9 @@ _WRITE = ("PAYLOAD_TOO_LARGE", "UNSUPPORTED_MEDIA_TYPE", "MALFORMED_REQUEST", "I
     response_model=UserOut,
     summary="Register a user",
     description=(
-        "Create an account. No token is needed. The role is always `developer`; only a lead can "
-        "change it later. The password must be 12 to 128 characters and not equal to the email. "
+        "Create an account. No token is needed. Role defaults to `developer` when omitted; "
+        "the registrant may set it to `lead` directly. The password must be 12 to 128 "
+        "characters and not equal to the email. "
         "Returns `201` with a `Location` header. "
         "Limited to 5 attempts per minute per client and email."
     ),
@@ -38,6 +39,7 @@ async def register(
         payload.password,
         payload.avatar_url,
         payload.preferences.theme if payload.preferences else Theme.SYSTEM,
+        role=payload.role if payload.role is not None else Role.DEVELOPER,
         given_name=payload.given_name,
         family_name=payload.family_name,
         profile=payload.profile.model_dump(by_alias=True) if payload.profile is not None else None,

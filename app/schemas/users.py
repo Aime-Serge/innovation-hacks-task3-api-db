@@ -81,6 +81,9 @@ class UserCreate(ApiModel):
     avatar_url: AvatarUrl | None = None
     profile: RegistrationProfile | None = None
     preferences: Preferences | None = None
+    role: Role | None = Field(
+        default=None, description="developer or lead; defaults to developer when omitted."
+    )
 
     @model_validator(mode="after")
     def _registration_shape(self) -> "UserCreate":
