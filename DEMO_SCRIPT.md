@@ -1,68 +1,76 @@
-# Demo script: Task 2 API (about 4 minutes)
+# Demo script: Task 3 database integration (about 4 minutes)
 
-Record the screen with the terminal on the left and the browser on the right. Say the line in
-quotes, then do the action.
+Record the screen with the terminal on the left and the browser (Swagger UI) on the right. Say the
+line in quotes, then do the action.
 
 ## Set up before recording
 
 ```bash
-uv sync --frozen
-export SECRET_KEY=$(python3 -c 'import secrets; print(secrets.token_urlsafe(48))')
-SEED_PASSWORD='Demo-Password-123' SEED_PROFILE=default uv run uvicorn app.main:create_app --factory
+make env          # writes .env with freshly generated passwords (git-ignored)
+make db-up        # PostgreSQL 16 in Docker, three roles created
+make db-migrate   # applies the migrations
+python -m app.seed --profile default --reset --yes
+make run
 ```
 
 Open http://127.0.0.1:8000/docs in the browser. The demo password lives only in your shell.
 
-## 1. The contract (40 s)
+## 1. The database, not just the API (40 s)
 
-"This is the Task 2 API, built to an engineering standards pack. The interactive docs are generated
-from the code, and a test fails the build if `docs/openapi.json` drifts from them."
+"Task 2 kept everything in memory. Task 3 replaces that with PostgreSQL, and the API contract does
+not change — the Task 1 dashboard and every Task 2 test still pass against it."
 
-- Scroll the operation list: Authentication, Users, Projects, Tasks, Dashboard, Health.
-- Open **POST /api/v1/tasks**. Point at the request example, the response example and the list of
-  documented errors (400, 401, 403, 409, 413, 415, 422, 500).
+- Show `database/docs/erd.mmd` rendered, or `database/docs/data-dictionary.md`: four tables, six
+  foreign keys with deliberate delete rules, and the constraints the database itself enforces
+  (lengths, enums, a unique lower-case email, `completed_at` set exactly when a task is `done`).
 
-## 2. Authentication (40 s)
+## 2. Migrations, not a hand-run script (45 s)
 
-"No default credentials. Log in as the seeded lead."
+"Schema changes are Alembic migrations, written by hand and reviewed, each with a downgrade."
 
-- **POST /api/v1/auth/login** with `amara.diallo@example.com` and the demo password. Copy the token,
-  click **Authorize**, paste it.
-- Try a wrong password, then an unknown email. "Same 401, same message, so it cannot be used to
-  find out which accounts exist."
-- **GET /api/v1/auth/me** shows the lead.
+In the terminal:
 
-## 3. A task through its workflow (75 s)
+```bash
+make db-check     # alembic check: naming rules and column types match the models
+```
 
-"Business rules are enforced on the server, not the client."
+"The gate runs every migration up, down and up again, on an empty database and on a seeded one,
+before it's trusted."
 
-- **POST /api/v1/projects**, then **POST /api/v1/tasks**. Point at `201` and the `Location` header.
-- **PATCH /api/v1/tasks/{taskId}/status** with `done` straight from `todo`. Show the `409
-  INVALID_STATUS_TRANSITION` and the `allowedStatuses` detail.
-- Move it `in_progress`, `in_review`, `done`. Show `completedAt` appear. Move it back to
-  `in_progress` and show `completedAt` clear.
-- **GET /api/v1/projects/{projectId}**: the progress numbers changed.
+## 3. Data survives a restart (50 s)
 
-## 4. Permissions and validation (45 s)
+"This is the part memory storage couldn't do."
 
-- Register a new account, log in as it, and try **DELETE /api/v1/users/{userId}**. `403 FORBIDDEN`.
-- **POST /api/v1/projects** with `{"name": "  ", "ownerId": "x"}`. `422` with a field list, and
-  "clients can never set the owner".
-- **GET /api/v1/tasks?pageSize=500**. `422`, and the error shows `requestId`.
+- **POST /api/v1/projects**, then **POST /api/v1/tasks** in Swagger UI. Note the id.
+- Stop the API (`Ctrl-C`), restart it with `make run`, no reseed.
+- **GET /api/v1/tasks/{taskId}**: the same task, same id, still there.
 
-## 5. The gate (45 s)
+## 4. Roles, not one shared login (45 s)
 
-"Everything I just showed is a test."
+"The API connects as `ih_app`, which can read and write rows but cannot alter the schema. A
+separate role, `ih_migrator`, owns the schema and is the only one `make db-migrate` uses. Neither
+role, and no connection string, is hard-coded anywhere in the repository — everything comes from
+the environment, and the app refuses to start without it."
 
-In the terminal run `make test` and show the coverage line and the endpoint-coverage line, then
-`make layers` ("the architecture rules are enforced by a tool"). Mention Schemathesis, Newman, Locust.
+- Show `.env.example`: `DATABASE_URL`, `MIGRATION_DATABASE_URL`, each a placeholder.
+- Optional: `make secrets` (gitleaks) returning clean.
+
+## 5. The database-level gate (35 s)
+
+"Everything above is proven by a database test suite, not just assumed."
+
+Run `make db-gate` (or, if time is short, name its parts): migration round-trips, integrity
+(constraint bypass tests written as raw SQL), concurrency, restore-and-verify with a checksum
+comparison, and drift-checked docs.
 
 ## Say honestly at the end (15 s)
 
-"State is in memory and resets on restart, and the rate limiter is per process. Task 3 adds the
-database."
+"The rate limiter is still per process — one API instance runs. Task 4 brings this database and the
+Task 2 API together with the Task 1 frontend into one deployed platform."
 
 ## Before you upload
 
-- [ ] The recording shows no real password or token (blur the Authorize dialog if in doubt)
-- [ ] The README has the demo link, and `docs/openapi.json` is committed
+- [ ] The recording shows no real password, connection string or token (blur the Authorize dialog
+      and any terminal `.env` output if in doubt)
+- [ ] The README has the demo link, and `docs/openapi.json` is committed and matches the app
+      (`make spec-check`)
