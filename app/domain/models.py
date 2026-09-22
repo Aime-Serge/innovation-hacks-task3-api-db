@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass, field
 from datetime import date, datetime
+from typing import Any
 from uuid import UUID
 
 from app.domain.enums import ActivityType, Priority, ProjectStatus, Role, TaskStatus, Theme
@@ -19,6 +20,11 @@ class User:
     theme: Theme
     created_at: datetime
     updated_at: datetime
+    # Task 3 persists this complete registration block as JSON; Task 4 later normalises it into
+    # dedicated profile tables without discarding any account fields.
+    given_name: str | None = None
+    family_name: str | None = None
+    profile: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True, slots=True)

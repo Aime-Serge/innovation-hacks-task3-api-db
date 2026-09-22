@@ -9,6 +9,7 @@ from datetime import date, datetime
 from uuid import UUID
 
 from sqlalchemy import (
+    JSON,
     CheckConstraint,
     Computed,
     Date,
@@ -48,6 +49,9 @@ class UserRow(Base):
     password_hash: Mapped[str] = mapped_column(Text)
     role: Mapped[str] = mapped_column(Text, server_default="developer")
     avatar_url: Mapped[str | None] = mapped_column(Text)
+    given_name: Mapped[str | None] = mapped_column(Text)
+    family_name: Mapped[str | None] = mapped_column(Text)
+    profile: Mapped[dict[str, object] | None] = mapped_column(JSON)
     theme: Mapped[str] = mapped_column(Text, server_default="system")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=NOW)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=NOW)
@@ -64,8 +68,20 @@ class UserRow(Base):
         CheckConstraint("role IN ('developer', 'lead')", name="role"),
         CheckConstraint(
             "avatar_url IS NULL OR "
-            "(avatar_url LIKE 'https://%' AND char_length(avatar_url) <= 2048)",
+            "(avatar_url LIKE 'https://%' AND char_length(avatar_url) <= 2048) OR "
+            "(avatar_url ~ '^data:image/(png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$' "
+            "AND char_length(avatar_url) <= 700000)",
             name="avatar_url",
+        ),
+        CheckConstraint(
+            "given_name IS NULL OR (char_length(given_name) BETWEEN 1 AND 60 "
+            "AND given_name = btrim(given_name))",
+            name="given_name_length",
+        ),
+        CheckConstraint(
+            "family_name IS NULL OR (char_length(family_name) BETWEEN 1 AND 60 "
+            "AND family_name = btrim(family_name))",
+            name="family_name_length",
         ),
         CheckConstraint("theme IN ('light', 'dark', 'system')", name="theme"),
         Index("ix_users_role", "role"),

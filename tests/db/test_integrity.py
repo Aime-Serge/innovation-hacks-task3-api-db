@@ -17,8 +17,9 @@ LONG = "x" * 81
 UUID_1 = "11111111-1111-1111-1111-111111111111"
 
 USER = (
-    "INSERT INTO users (id, name, email, password_hash, role, avatar_url, theme) "
-    "VALUES (gen_random_uuid(), :name, :email, :hash, :role, :avatar, :theme)"
+    "INSERT INTO users (id, name, email, password_hash, role, avatar_url, theme, given_name, "
+    "family_name) VALUES (gen_random_uuid(), :name, :email, :hash, :role, :avatar, :theme, "
+    ":given_name, :family_name)"
 )
 GOOD_USER: dict[str, Any] = {
     "name": "Ada",
@@ -27,6 +28,8 @@ GOOD_USER: dict[str, Any] = {
     "role": "developer",
     "avatar": None,
     "theme": "system",
+    "given_name": None,
+    "family_name": None,
 }
 PROJECT = (
     "INSERT INTO projects (id, name, description, status, owner_id) "
@@ -49,6 +52,16 @@ USER_CASES = [
     ("role unknown", {"role": "admin"}, "ck_users_role"),
     ("avatar http", {"avatar": "http://example.com/a.png"}, "ck_users_avatar_url"),
     ("avatar too long", {"avatar": "https://e.io/" + "a" * 2050}, "ck_users_avatar_url"),
+    ("avatar data gif", {"avatar": "data:image/gif;base64,R0lGOD=="}, "ck_users_avatar_url"),
+    ("avatar data html", {"avatar": "data:text/html;base64,PHNjcmlwdD4="}, "ck_users_avatar_url"),
+    (
+        "avatar data too long",
+        {"avatar": "data:image/png;base64," + "A" * 700_001},
+        "ck_users_avatar_url",
+    ),
+    ("given name blank", {"given_name": ""}, "ck_users_given_name_length"),
+    ("given name untrimmed", {"given_name": " Grace"}, "ck_users_given_name_length"),
+    ("family name too long", {"family_name": "H" * 61}, "ck_users_family_name_length"),
     ("theme unknown", {"theme": "blue"}, "ck_users_theme"),
 ]
 PROJECT_CASES = [

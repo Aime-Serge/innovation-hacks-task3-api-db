@@ -8,6 +8,25 @@ import pytest
 from tests.conftest import DEV, LEAD, NOW, OTHER, PASSWORD, SECRET, Env, error_code, make_settings
 
 NEW = {"name": "Ada Lovelace", "email": "ada@example.com", "password": "correct-horse-battery"}
+FULL_REGISTRATION = {
+    "givenName": "Grace",
+    "familyName": "Hopper",
+    "email": "grace@example.com",
+    "password": "correct-horse-battery",
+    "avatarUrl": "data:image/png;base64,iVBORw0KGgo=",
+    "profile": {
+        "discipline": "backend",
+        "seniority": "senior",
+        "employmentStatus": "employed",
+        "companyName": "Acme",
+        "jobTitle": "Engineer",
+        "country": "RW",
+        "city": "Kigali",
+        "timeZone": "Africa/Kigali",
+        "termsAccepted": True,
+        "ageConfirmed": True,
+    },
+}
 
 
 async def test_tc201_register_returns_201_location_and_no_secrets(env: Env) -> None:
@@ -19,6 +38,19 @@ async def test_tc201_register_returns_201_location_and_no_secrets(env: Env) -> N
     assert "password" not in body
     assert "passwordHash" not in body
     assert "password_hash" not in body
+
+
+async def test_task4_compatible_registration_keeps_full_profile_and_uploaded_photo(
+    env: Env,
+) -> None:
+    response = await env.client.post("/api/v1/users", json=FULL_REGISTRATION)
+    assert response.status_code == 201, response.text
+    body = response.json()
+    assert body["name"] == "Grace Hopper"
+    assert body["givenName"] == "Grace"
+    assert body["familyName"] == "Hopper"
+    assert body["avatarUrl"] == FULL_REGISTRATION["avatarUrl"]
+    assert body["profile"] == FULL_REGISTRATION["profile"]
 
 
 async def test_tc202_duplicate_email_is_409_case_insensitive(env: Env) -> None:
