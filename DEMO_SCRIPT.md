@@ -53,7 +53,7 @@ role, and no connection string, is hard-coded anywhere in the repository — eve
 the environment, and the app refuses to start without it."
 
 - Show `.env.example`: `DATABASE_URL`, `MIGRATION_DATABASE_URL`, each a placeholder.
-- Optional: `grep -r "postgresql://.*:.*@" app/ scripts/ | grep -v .example` returning nothing.
+- Optional: `make secrets` (gitleaks) returning clean.
 
 ## 5. The database-level gate (35 s)
 
