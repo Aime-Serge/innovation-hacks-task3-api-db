@@ -232,6 +232,12 @@ Secrets come only from the environment. Compose stops if a password is unset, th
 backend and a connection string without `?ssl=require`. `MIGRATION_DATABASE_URL` belongs to the
 deploy step, not to the running API.
 
+The local database container (`database/docker-compose.yml`) reads its own secrets from `.env`,
+separately from the app-level variables in [Configuration](#configuration): `POSTGRES_DB`,
+`POSTGRES_USER`, `POSTGRES_PASSWORD` (the admin role) and `APP_DB_PASSWORD`, `MIGRATOR_DB_PASSWORD`,
+`READONLY_DB_PASSWORD` (used to create `ih_app`, `ih_migrator`, `ih_readonly`). All six are in
+`.env.example` with `<set-me>` placeholders; compose refuses to start if any is unset.
+
 ### Migrations
 
 Alembic, written by hand from the models and reviewed (BR-310). Every revision has a downgrade and
