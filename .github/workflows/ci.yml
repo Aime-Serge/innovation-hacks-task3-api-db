@@ -43,7 +43,7 @@ jobs:
       # Task 3: the data layer against a throwaway PostgreSQL (compose, generated passwords).
       - run: make env
       - run: make db-gate
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: reports
