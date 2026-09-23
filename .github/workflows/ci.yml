@@ -34,7 +34,7 @@ jobs:
       - run: make spec-diff
       - run: make contract
       - run: make security
-      - uses: gitleaks/gitleaks-action@v2
+      - uses: gitleaks/gitleaks-action@v3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - run: make postman
